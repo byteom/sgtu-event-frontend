@@ -1,139 +1,402 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminHeader from "@/components/admin/AdminHeader";
 import AdminMobileNav from "@/components/admin/AdminMobileNav";
 import api from "@/lib/api";
+import { filterData, filterByField, sortData, paginateData, getUniqueValues } from "@/lib/utils";
+import { useAdminAuth } from "@/hooks/useAuth";
 
 export default function AdminStudentsPage() {
-  const [students, setStudents] = useState([]);
+  const { isAuthenticated, isChecking } = useAdminAuth();
+  const [allStudents, setAllStudents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [limit] = useState(50);
-  const [offset, setOffset] = useState(0);
-
-  useEffect(() => {
-    fetchStudents();
-  }, [offset]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [schoolFilter, setSchoolFilter] = useState("all");
+  const [sortField, setSortField] = useState("");
+  const [sortDirection, setSortDirection] = useState("asc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
 
   async function fetchStudents() {
     setLoading(true);
     try {
+      // Fetch all students with a high limit
       const token = localStorage.getItem("admin_token");
-      const res = await api.get(`/admin/students?limit=${limit}&offset=${offset}`, {
+      const res = await api.get(`/admin/students?limit=10000&offset=0`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.data?.success) setStudents(res.data.data || []);
+      if (res.data?.success) setAllStudents(res.data.data || []);
     } catch (e) {
       console.error(e);
     } finally { setLoading(false); }
   }
 
+  useEffect(() => {
+    if (!isChecking && isAuthenticated) {
+      fetchStudents();
+    }
+  }, [isChecking, isAuthenticated]);
+
+  // Get unique schools for filter
+  const schools = useMemo(() => getUniqueValues(allStudents, "school_name"), [allStudents]);
+
+  // Apply filters, search, and sort
+  const processedStudents = useMemo(() => {
+    let result = [...allStudents];
+    
+    // Apply search
+    if (searchTerm) {
+      result = filterData(result, searchTerm, ["full_name", "email", "registration_no", "school_name"]);
+    }
+    
+    // Apply school filter
+    if (schoolFilter !== "all") {
+      result = filterByField(result, "school_name", schoolFilter);
+    }
+    
+    // Apply sort
+    if (sortField) {
+      result = sortData(result, sortField, sortDirection);
+    }
+    
+    return result;
+  }, [allStudents, searchTerm, schoolFilter, sortField, sortDirection]);
+
+  // Paginate
+  const { paginatedData: students, totalPages, totalItems } = useMemo(() => 
+    paginateData(processedStudents, currentPage, itemsPerPage),
+    [processedStudents, currentPage, itemsPerPage]
+  );
+
+  // Show loading while checking authentication
+  if (isChecking) {
+    return (
+      <div className="min-h-screen bg-soft-background dark:bg-dark-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-dark-text dark:text-gray-300">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated (will redirect)
+  if (!isAuthenticated) {
+    return null;
+  }
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+    setCurrentPage(1);
+  };
+
+  const getSortIcon = (field) => {
+    if (sortField !== field) return "unfold_more";
+    return sortDirection === "asc" ? "arrow_upward" : "arrow_downward";
+  };
+
+  const handleLogout = async () => {
+    try {
+      await api.post("/admin/logout");
+    } catch(e){}
+    localStorage.removeItem("admin_token");
+    localStorage.removeItem("admin_name");
+    window.location.href = "/";
+  };
+
   return (
-    <div className="flex min-h-screen bg-soft-background">
-      <AdminSidebar onLogout={() => { localStorage.removeItem("admin_token"); location.href = "/admin/login"; }} />
+    <div className="flex min-h-screen bg-soft-background dark:bg-dark-background">
+      <AdminSidebar onLogout={handleLogout} />
       <div className="flex-1 flex flex-col">
-        <AdminHeader adminName={localStorage.getItem("admin_name")} />
-        {/* <main className="p-6 max-w-6xl mx-auto">
-          <h1 className="text-2xl font-bold mb-4">All Students</h1>
-          {loading ? <div>Loading…</div> : (
-            <div className="space-y-3">
-              {students.map(s => (
-                <div key={s.id} className="p-4 bg-card-background border rounded-lg flex justify-between items-center">
-                  <div>
-                    <div className="font-semibold">{s.full_name}</div>
-                    <div className="text-sm text-gray-500">{s.school_name} • {s.registration_no}</div>
-                  </div>
-                  <div className="text-sm">
-                    <div className={s.is_inside_event ? "text-green-600" : "text-gray-500"}>
-                      {s.is_inside_event ? "Inside" : "Outside"}
-                    </div>
-                    <div className="text-xs text-gray-400">{s.feedback_count} feedbacks</div>
-                  </div>
-                </div>
-              ))}
+        <AdminHeader adminName={localStorage.getItem("admin_name") || "Admin"} onLogout={handleLogout} />
+
+        <main className="p-4 sm:p-6 md:ml-64 pt-16 sm:pt-20 pb-20 sm:pb-6">
+          <div className="mb-4 sm:mb-6">
+            <h1 className="text-xl sm:text-2xl font-bold mb-1 text-dark-text dark:text-white">Students Management</h1>
+          </div>
+
+          {/* Search and Filter Bar */} 
+          <div className="mb-4 flex flex-col gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xl">search</span>
+                <input
+                  type="text"
+                  placeholder="Search by name, email, enrollment..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full pl-10 pr-4 py-2.5 border border-light-gray-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm bg-card-background dark:bg-gray-800 text-dark-text dark:text-white"
+                />
+              </div>
+              <select
+                value={schoolFilter}
+                onChange={(e) => {
+                  setSchoolFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="px-4 py-2.5 border border-light-gray-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm bg-card-background dark:bg-gray-800 text-dark-text dark:text-white"
+              >
+                <option value="all">All Schools</option>
+                {schools.map((school) => (
+                  <option key={school} value={school}>{school}</option>
+                ))}
+              </select>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="px-4 py-2.5 border border-light-gray-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm bg-card-background dark:bg-gray-800 text-dark-text dark:text-white"
+              >
+                <option value={10}>10 per page</option>
+                <option value={25}>25 per page</option>
+                <option value={50}>50 per page</option>
+                <option value={100}>100 per page</option>
+              </select>
             </div>
-          )}
-        </main> */}
+            <div className="flex flex-wrap gap-2 items-center justify-between">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                Showing {students.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} - {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} students
+              </div>
+              <div className="flex gap-2">
+                <button className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm border border-light-gray-border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition">
+                  <span className="material-symbols-outlined text-lg">upload_file</span>
+                  <span className="hidden sm:inline">Upload Excel</span>
+                  <span className="sm:hidden">Upload</span>
+                </button>
+                <button className="px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-dark transition text-sm font-medium flex items-center justify-center gap-2">
+                  <span className="material-symbols-outlined text-lg">add</span>
+                  Add Student
+                </button>
+              </div>
+            </div>
+          </div>
 
+          {/* Desktop Table View */}
+          <div className="hidden md:block bg-card-background dark:bg-card-dark rounded-xl border border-light-gray-border shadow-soft overflow-hidden">
 
-        <main className="p-6 max-w-7xl mx-auto">
-
-  <h1 className="text-3xl font-bold mb-8 text-dark-text">All Students</h1>
-
-  <div className="bg-white dark:bg-card-dark shadow-soft border border-light-gray-border rounded-2xl overflow-hidden">
-
-    {/* TABLE HEADER */}
-    <div className="grid grid-cols-6 bg-gray-50 dark:bg-gray-800 px-6 py-4 font-semibold text-gray-600 dark:text-gray-300 text-sm">
-      <div>TIMESTAMP</div>
-      <div>STUDENT NAME</div>
-      <div>REG. NO</div>
-      <div>FEEDBACK</div>
-      <div>STATUS</div>
-      <div className="text-right">ACTIONS</div>
-    </div>
+            {/* TABLE HEADER */}
+            <div className="grid grid-cols-[2fr_2fr_2fr_2fr_1.5fr_1.5fr_1.5fr_0.5fr] bg-gray-50 dark:bg-gray-800 px-6 py-3 font-medium text-gray-600 dark:text-gray-300 text-xs uppercase tracking-wider gap-4">
+              <button onClick={() => handleSort("full_name")} className="flex items-center gap-1 hover:text-primary transition text-left">
+                <span>Name</span>
+                <span className={`material-symbols-outlined text-sm ${sortField === "full_name" ? "text-primary" : ""}`}>
+                  {getSortIcon("full_name")}
+                </span>
+              </button>
+              <button onClick={() => handleSort("email")} className="flex items-center gap-1 hover:text-primary transition text-left">
+                <span>Email</span>
+                <span className={`material-symbols-outlined text-sm ${sortField === "email" ? "text-primary" : ""}`}>
+                  {getSortIcon("email")}
+                </span>
+              </button>
+              <button onClick={() => handleSort("registration_no")} className="flex items-center gap-1 hover:text-primary transition text-left">
+                <span>Enrollment</span>
+                <span className={`material-symbols-outlined text-sm ${sortField === "registration_no" ? "text-primary" : ""}`}>
+                  {getSortIcon("registration_no")}
+                </span>
+              </button>
+              <button onClick={() => handleSort("school_name")} className="flex items-center gap-1 hover:text-primary transition text-left">
+                <span>Department</span>
+                <span className={`material-symbols-outlined text-sm ${sortField === "school_name" ? "text-primary" : ""}`}>
+                  {getSortIcon("school_name")}
+                </span>
+              </button>
+              <button onClick={() => handleSort("created_at")} className="flex items-center gap-1 hover:text-primary transition text-left">
+                <span>Created At</span>
+                <span className={`material-symbols-outlined text-sm ${sortField === "created_at" ? "text-primary" : ""}`}>
+                  {getSortIcon("created_at")}
+                </span>
+              </button>
+              <button onClick={() => handleSort("feedback_count")} className="flex items-center gap-1 hover:text-primary transition text-left">
+                <span>Feedbacks</span>
+                <span className={`material-symbols-outlined text-sm ${sortField === "feedback_count" ? "text-primary" : ""}`}>
+                  {getSortIcon("feedback_count")}
+                </span>
+              </button>
+              <button onClick={() => handleSort("total_active_duration_minutes")} className="flex items-center gap-1 hover:text-primary transition text-left">
+                <span>Time Spent</span>
+                <span className={`material-symbols-outlined text-sm ${sortField === "total_active_duration_minutes" ? "text-primary" : ""}`}>
+                  {getSortIcon("total_active_duration_minutes")}
+                </span>
+              </button>
+              <div></div>
+            </div>
 
     {/* DATA ROWS */}
-    {students.map((s, i) => (
+    {loading ? (
+      <div className="px-6 py-12">
+        <div className="animate-pulse space-y-4">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
+          ))}
+        </div>
+      </div>
+    ) : students.length === 0 ? (
+      <div className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+        {searchTerm || schoolFilter !== "all" ? "No students match your filters" : "No students found"}
+      </div>
+    ) : (
+      students.map((s, i) => (
       <div
         key={s.id}
-        className={`grid grid-cols-6 px-6 py-4 text-sm items-center 
-        ${i % 2 === 0 ? "bg-white dark:bg-card-dark" : "bg-gray-50 dark:bg-gray-900"}
-        hover:bg-blue-50/40 dark:hover:bg-blue-900/20 transition`}
+        className={`grid grid-cols-[2fr_2fr_2fr_2fr_1.5fr_1.5fr_1.5fr_0.5fr] px-6 py-4 text-sm items-center border-b border-gray-100 dark:border-gray-800
+        hover:bg-gray-50 dark:hover:bg-gray-800/50 transition gap-4`}
       >
-
-        {/* TIMESTAMP */}
-        <div className="text-gray-600 dark:text-gray-400">
-          {new Date().toLocaleString()} {/* Replace when API gives date */}
-        </div>
-
         {/* NAME */}
-        <div className="font-semibold text-dark-text dark:text-gray-200">
+        <div className="font-medium text-dark-text dark:text-gray-200 truncate">
           {s.full_name}
         </div>
 
-        {/* REGISTRATION */}
-        <div className="text-gray-600 dark:text-gray-400">
+        {/* EMAIL */}
+        <div className="text-gray-600 dark:text-gray-400 text-sm truncate">
+          {s.email || "—"}
+        </div>
+
+        {/* ENROLLMENT */}
+        <div className="text-gray-600 dark:text-gray-400 truncate">
           {s.registration_no}
         </div>
 
-        {/* FEEDBACK COUNT */}
-        <div className="font-medium text-primary">
-          {s.feedback_count}
+        {/* DEPARTMENT */}
+        <div className="text-gray-600 dark:text-gray-400 truncate">
+          {s.school_name || "—"}
         </div>
 
-        {/* STATUS BADGE */}
-        <div>
-          {s.is_inside_event ? (
-            <span className="px-3 py-1 text-xs rounded-full bg-green-100 text-green-600 font-semibold">
-              Checked-In
-            </span>
-          ) : (
-            <span className="px-3 py-1 text-xs rounded-full bg-yellow-100 text-yellow-600 font-semibold">
-              Checked-Out
-            </span>
-          )}
+        {/* CREATED AT */}
+        <div className="text-gray-500 dark:text-gray-400 text-xs">
+          {s.created_at ? new Date(s.created_at).toLocaleDateString() : "—"}
         </div>
 
-        {/* ACTION BUTTONS */}
-        <div className="flex items-center gap-3 justify-end">
+        {/* FEEDBACKS */}
+        <div className="text-gray-600 dark:text-gray-400">
+          {s.feedback_count || 0} feedbacks
+        </div>
 
-          <button className="text-gray-500 hover:text-primary transition">
-            <span className="material-symbols-outlined text-base">visibility</span>
+        {/* TIME SPENT */}
+        <div className="text-gray-600 dark:text-gray-400">
+          {s.total_active_duration_minutes ? `${Math.floor(s.total_active_duration_minutes / 60)}h ${String(s.total_active_duration_minutes % 60).padStart(2, '0')}m` : "—"}
+        </div>
+
+        {/* ACTIONS */}
+        <div className="flex justify-end">
+          <button className="text-gray-400 hover:text-gray-600 p-1">
+            <span className="material-symbols-outlined text-lg">more_vert</span>
           </button>
-
-          <button className="text-gray-500 hover:text-red-500 transition">
-            <span className="material-symbols-outlined text-base">delete</span>
-          </button>
-
         </div>
-
       </div>
-    ))}
+      ))
+    )}
 
-  </div>
+          </div>
 
-</main>
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-3">
+            {loading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="bg-card-background dark:bg-card-dark rounded-xl border border-light-gray-border shadow-soft p-4 animate-pulse">
+                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2"></div>
+                    <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+                  </div>
+                ))}
+              </div>
+            ) : students.length === 0 ? (
+              <div className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                No students found
+              </div>
+            ) : (
+              students.map((s) => (
+                <div
+                  key={s.id}
+                  className="bg-card-background dark:bg-card-dark rounded-xl border border-light-gray-border shadow-soft p-4"
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-dark-text dark:text-white text-base mb-1">
+                        {s.full_name}
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{s.email || "—"}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Enrollment: {s.registration_no}</p>
+                    </div>
+                    <button className="text-gray-400 hover:text-gray-600 p-1">
+                      <span className="material-symbols-outlined text-xl">more_vert</span>
+                    </button>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-light-gray-border flex items-center gap-4 text-xs">
+                    <div className="text-gray-600 dark:text-gray-400">
+                      <span className="font-medium">{s.school_name || "—"}</span>
+                    </div>
+                    <div className="text-gray-600 dark:text-gray-400">
+                      {s.feedback_count || 0} feedbacks
+                    </div>
+                    <div className="text-gray-600 dark:text-gray-400">
+                      {s.total_active_duration_minutes ? `${Math.floor(s.total_active_duration_minutes / 60)}h ${String(s.total_active_duration_minutes % 60).padStart(2, '0')}m` : "—"}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="mt-6 flex items-center justify-between">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-4 py-2 border border-light-gray-border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm text-dark-text dark:text-white"
+              >
+                Previous
+              </button>
+              <div className="flex items-center gap-2">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`px-3 py-1 rounded text-sm ${
+                        currentPage === pageNum
+                          ? "bg-primary text-white"
+                          : "border border-light-gray-border hover:bg-gray-50 dark:hover:bg-gray-800 text-dark-text dark:text-white"
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-4 py-2 border border-light-gray-border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm text-dark-text dark:text-white"
+              >
+                Next
+              </button>
+            </div>
+          )}
+
+        </main>
 
       </div>
       <AdminMobileNav />

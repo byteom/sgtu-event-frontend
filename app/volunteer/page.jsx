@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 import api from "@/lib/api";
+import { useVolunteerAuth } from "@/hooks/useAuth";
 
 // SHARED COMPONENTS
 import VolunteerSidebar from "@/components/volunteer/VolunteerSidebar";
@@ -12,6 +13,7 @@ import VolunteerHeader from "@/components/volunteer/VolunteerHeader";
 import VolunteerMobileNav from "@/components/volunteer/VolunteerMobileNav";
 
 export default function VolunteerDashboard() {
+  const { isAuthenticated, isChecking } = useVolunteerAuth();
   const router = useRouter();
 
   const [theme, setTheme] = useState("light");
@@ -47,8 +49,10 @@ export default function VolunteerDashboard() {
   }
 
   useEffect(() => {
-    loadHistory();
-  }, []);
+    if (!isChecking && isAuthenticated) {
+      loadHistory();
+    }
+  }, [isChecking, isAuthenticated]);
 
   // ------------------ LOAD THEME ------------------
   useEffect(() => {
@@ -77,6 +81,22 @@ const handleLogout = () => {
   });
 };
 
+  // Show loading while checking authentication
+  if (isChecking) {
+    return (
+      <div className="min-h-screen bg-soft-background dark:bg-dark-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-dark-text dark:text-gray-300">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated (will redirect)
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="flex min-h-screen bg-soft-background dark:bg-dark-background">
@@ -116,13 +136,13 @@ const handleLogout = () => {
                 />
                 <StatCard
                   title="Check-ins"
-                  value={history.filter(h => h.type === "in").length}
+                  value={history.filter(h => h.scan_type === "CHECKIN").length}
                   icon="login"
                   color="green"
                 />
                 <StatCard
                   title="Check-outs"
-                  value={history.filter(h => h.type === "out").length}
+                  value={history.filter(h => h.scan_type === "CHECKOUT").length}
                   icon="logout"
                   color="yellow"
                 />
@@ -166,9 +186,9 @@ const handleLogout = () => {
                     <HistoryItem
                       key={idx}
                       name={item.student_name}
-                      type={item.type}
+                      type={item.scan_type}
                       reg={item.registration_no}
-                      time={item.time}
+                      time={item.scanned_at}
                     />
                   ))}
                 </ul>
@@ -217,7 +237,23 @@ function StatCard({ title, value, icon, color }) {
 }
 
 function HistoryItem({ name, type, reg, time }) {
-  const isIn = type === "in";
+  const isIn = type === "CHECKIN";
+
+  // Format timestamp
+  const formatTime = (timestamp) => {
+    if (!timestamp) return "—";
+    try {
+      const date = new Date(timestamp);
+      return date.toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return timestamp;
+    }
+  };
 
   return (
     <li className="p-5 flex items-center justify-between">
@@ -238,7 +274,7 @@ function HistoryItem({ name, type, reg, time }) {
 
       </div>
 
-      <p className="text-sm text-gray-500">{time}</p>
+      <p className="text-sm text-gray-500">{formatTime(time)}</p>
     </li>
   );
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import { useRouter } from "next/navigation";
+import { useStudentAuth } from "@/hooks/useAuth";
 
 // ---- SHARED COMPONENTS ----
 import StudentSidebar from "@/components/student/StudentSidebar";
@@ -10,6 +11,7 @@ import StudentHeader from "@/components/student/StudentHeader";
 import StudentMobileNav from "@/components/student/StudentMobileNav";
 
 export default function StudentQRPage() {
+  const { isAuthenticated, isChecking } = useStudentAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [qrData, setQrData] = useState(null);
@@ -75,15 +77,35 @@ export default function StudentQRPage() {
     document.documentElement.classList.toggle("dark", next === "dark");
   };
 
-  const handleLogout = () => {
-  api.post("/student/logout", {}, {
-    headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
-  }).finally(() => {
-    localStorage.removeItem("token");
+  const handleLogout = async () => {
+    try {
+      await api.post("/student/logout");
+    } catch (error) {
+      // Logout even if API call fails
+      console.error("Logout error:", error);
+    } finally {
+      localStorage.removeItem("token");
+      localStorage.removeItem("role");
+      window.location.href = "/";
+    }
+  };
 
-    window.location.href = "/";
-  });
-};
+  // Show loading while checking authentication
+  if (isChecking) {
+    return (
+      <div className="min-h-screen bg-soft-background dark:bg-dark-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-dark-text dark:text-gray-300">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated (will redirect)
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="bg-soft-background font-sans text-dark-text antialiased min-h-screen flex">

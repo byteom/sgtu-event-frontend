@@ -45,10 +45,19 @@ export default function LoginPage() {
       // res.data.data.token
       // ----------------------------
       const token = res.data?.data?.token;
+      const adminData = res.data?.data?.admin;
 
       if (token) {
-        // save token in localStorage
-        localStorage.setItem("token", token);
+        // save token in localStorage based on role
+        if (role === "admin") {
+          localStorage.setItem("admin_token", token);
+          if (adminData?.full_name) {
+            localStorage.setItem("admin_name", adminData.full_name);
+          }
+        } else {
+          localStorage.setItem("token", token);
+          localStorage.setItem("role", role);
+        }
       } else {
         alert("Token not received from backend!");
         return;

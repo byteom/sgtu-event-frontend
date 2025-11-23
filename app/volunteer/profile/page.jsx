@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import { useRouter } from "next/navigation";
+import { useVolunteerAuth } from "@/hooks/useAuth";
 
 import VolunteerSidebar from "@/components/volunteer/VolunteerSidebar";
 import VolunteerMobileNav from "@/components/volunteer/VolunteerMobileNav";
 import VolunteerHeader from "@/components/volunteer/VolunteerHeader";
 
 export default function VolunteerProfilePage() {
+  const { isAuthenticated, isChecking } = useVolunteerAuth();
   const router = useRouter();
 
   const [theme, setTheme] = useState("light");
@@ -57,6 +59,22 @@ const handleLogout = () => {
   });
 };
 
+  // Show loading while checking authentication
+  if (isChecking) {
+    return (
+      <div className="min-h-screen bg-soft-background dark:bg-dark-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-dark-text dark:text-gray-300">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated (will redirect)
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="flex min-h-screen bg-soft-background dark:bg-dark-background">

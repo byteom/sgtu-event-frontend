@@ -15,13 +15,11 @@
   --shadow-soft: 0 10px 30px rgba(43, 108, 176, 0.12);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0d1220;
-    --foreground: #ededed;
-    --card-background: #1a1f2b;
-    --light-gray-border: #2d3748;
-  }
+.dark {
+  --background: #0d1220;
+  --foreground: #ededed;
+  --card-background: #1a1f2b;
+  --light-gray-border: #2d3748;
 }
 
 /* Apply root variables */

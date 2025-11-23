@@ -4,12 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import api from "@/lib/api";
 import { useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
+import { useVolunteerAuth } from "@/hooks/useAuth";
 
 import VolunteerSidebar from "@/components/volunteer/VolunteerSidebar";
 import VolunteerHeader from "@/components/volunteer/VolunteerHeader";
 import VolunteerMobileNav from "@/components/volunteer/VolunteerMobileNav";
 
 export default function VolunteerScannerPage() {
+  const { isAuthenticated, isChecking } = useVolunteerAuth();
   const router = useRouter();
   const pathname = usePathname();
   const readerRef = useRef(null);
@@ -116,26 +118,35 @@ const handleLogout = () => {
 
       const d = res.data?.data;
 
-    //   if (d.status === "IN") {
-    //     router.push(
-    //       `/volunteer/scanner/success-in?name=${d.full_name}&reg=${d.registration_no}`
-    //     );
-    //   } else {
-    //     router.push(
-    //       `/volunteer/scanner/success-out?name=${d.full_name}&reg=${d.registration_no}`
-    //     );
-    //   }
-
-    if (d.status === "IN") {
-  router.push(`/volunteer/scanner/success?name=${d.full_name}&reg=${d.registration_no}&type=IN`);
-} else {
-  router.push(`/volunteer/scanner/success?name=${d.full_name}&reg=${d.registration_no}&type=OUT`);
-}
+      // Backend returns action: 'ENTRY' or 'EXIT'
+      // Student data is in d.student
+      if (d.action === "ENTRY") {
+        router.push(`/volunteer/scanner/success?name=${encodeURIComponent(d.student.full_name)}&reg=${encodeURIComponent(d.student.registration_no)}&type=IN`);
+      } else {
+        router.push(`/volunteer/scanner/success?name=${encodeURIComponent(d.student.full_name)}&reg=${encodeURIComponent(d.student.registration_no)}&type=OUT`);
+      }
 
     } catch (err) {
       setError("Scan failed.");
       setStatus("error");
     }
+  }
+
+  // Show loading while checking authentication
+  if (isChecking) {
+    return (
+      <div className="min-h-screen bg-soft-background dark:bg-dark-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-dark-text dark:text-gray-300">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated (will redirect)
+  if (!isAuthenticated) {
+    return null;
   }
 
   return (

@@ -1,13 +1,15 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
+import { useVolunteerAuth } from "@/hooks/useAuth";
+import api from "@/lib/api";
 
 import VolunteerSidebar from "@/components/volunteer/VolunteerSidebar";
 import VolunteerHeader from "@/components/volunteer/VolunteerHeader";
 import VolunteerMobileNav from "@/components/volunteer/VolunteerMobileNav";
 
-export default function ScanSuccessPage() {
+function ScanSuccessContent() {
   const router = useRouter();
   const params = useSearchParams();
 
@@ -36,17 +38,16 @@ export default function ScanSuccessPage() {
   };
 
 
-const handleLogout = () => {
-  api.post("/volunteer/logout", {}, {
-    headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
-  }).finally(() => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("volunteer_name");
+  const handleLogout = () => {
+    api.post("/volunteer/logout", {}, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+    }).finally(() => {
+      localStorage.removeItem("token");
+      localStorage.removeItem("volunteer_name");
 
-    window.location.href = "/";
-  });
-};
-
+      window.location.href = "/";
+    });
+  };
 
   return (
     <div className="flex min-h-screen bg-light-background dark:bg-dark-background">
@@ -132,5 +133,39 @@ const handleLogout = () => {
       {/* MOBILE NAV */}
       <VolunteerMobileNav />
     </div>
+  );
+}
+
+export default function ScanSuccessPage() {
+  const { isAuthenticated, isChecking } = useVolunteerAuth();
+
+  // Show loading while checking authentication
+  if (isChecking) {
+    return (
+      <div className="min-h-screen bg-soft-background dark:bg-dark-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-dark-text dark:text-gray-300">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated (will redirect)
+  if (!isAuthenticated) {
+    return null;
+  }
+
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-soft-background dark:bg-dark-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
+          <p className="text-dark-text dark:text-gray-300 mt-4">Loading...</p>
+        </div>
+      </div>
+    }>
+      <ScanSuccessContent />
+    </Suspense>
   );
 }

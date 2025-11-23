@@ -3,17 +3,26 @@
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import { useRouter } from "next/navigation";
+import { useStudentAuth } from "@/hooks/useAuth";
 
 import StudentSidebar from "@/components/student/StudentSidebar";
 import StudentHeader from "@/components/student/StudentHeader";
 import StudentMobileNav from "@/components/student/StudentMobileNav";
 
 export default function StudentProfilePage() {
+  const { isAuthenticated, isChecking } = useStudentAuth();
   const router = useRouter();
 
   const [theme, setTheme] = useState("light");
   const [loading, setLoading] = useState(true);
   const [student, setStudent] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [updating, setUpdating] = useState(false);
+  const [updateError, setUpdateError] = useState("");
+  const [updateSuccess, setUpdateSuccess] = useState("");
 
   // ------------------ FETCH STUDENT PROFILE ------------------
   useEffect(() => {
@@ -25,7 +34,9 @@ export default function StudentProfilePage() {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        setStudent(res.data?.data || {});
+        const studentData = res.data?.data || {};
+        setStudent(studentData);
+        setEmail(studentData.email || "");
       } catch (err) {
         console.error(err);
         alert("Failed to load profile.");
@@ -33,8 +44,10 @@ export default function StudentProfilePage() {
       setLoading(false);
     }
 
-    fetchProfile();
-  }, []);
+    if (isAuthenticated && !isChecking) {
+      fetchProfile();
+    }
+  }, [isAuthenticated, isChecking]);
 
   // ------------------ THEME HANDLING ------------------
   useEffect(() => {
@@ -52,15 +65,85 @@ export default function StudentProfilePage() {
 
   const goTo = (path) => router.push(path);
 
-const handleLogout = () => {
-  api.post("/student/logout", {}, {
-    headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
-  }).finally(() => {
-    localStorage.removeItem("token");
+  // ------------------ UPDATE PROFILE ------------------
+  const handleUpdateProfile = async () => {
+    setUpdateError("");
+    setUpdateSuccess("");
 
-    window.location.href = "/";
-  });
-};
+    if (password && password !== confirmPassword) {
+      setUpdateError("Passwords do not match");
+      return;
+    }
+
+    if (password && password.length < 6) {
+      setUpdateError("Password must be at least 6 characters");
+      return;
+    }
+
+    setUpdating(true);
+
+    try {
+      const updateData = {};
+      if (email && email !== student?.email) {
+        updateData.email = email;
+      }
+      if (password) {
+        updateData.password = password;
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        setUpdateError("No changes to save");
+        setUpdating(false);
+        return;
+      }
+
+      const res = await api.put("/student/profile", updateData);
+
+      if (res.data?.success) {
+        setUpdateSuccess("Profile updated successfully!");
+        setStudent(res.data.data);
+        setPassword("");
+        setConfirmPassword("");
+        setEditing(false);
+        setTimeout(() => setUpdateSuccess(""), 3000);
+      }
+    } catch (err) {
+      const errorMsg = err.response?.data?.message || "Failed to update profile";
+      setUpdateError(errorMsg);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  // Show loading while checking authentication
+  if (isChecking) {
+    return (
+      <div className="min-h-screen bg-soft-background dark:bg-dark-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-dark-text dark:text-gray-300">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated (will redirect)
+  if (!isAuthenticated) {
+    return null;
+  }
+
+  const handleLogout = async () => {
+    try {
+      await api.post("/student/logout");
+    } catch (error) {
+      // Logout even if API call fails
+      console.error("Logout error:", error);
+    } finally {
+      localStorage.removeItem("token");
+      localStorage.removeItem("role");
+      window.location.href = "/";
+    }
+  };
 
   return (
     <div className="bg-soft-background font-sans text-dark-text antialiased min-h-screen flex">
@@ -89,26 +172,123 @@ const handleLogout = () => {
                 {/* ---------- BIG PROFILE CARD ---------- */}
                 <ProfileHero student={student} />
 
-                {/* ---------- STUDENT DETAILS GRID ---------- */}
-                <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <DetailCard title="Registration No" value={student?.registration_no} icon="badge" />
-                  <DetailCard title="Department" value={student?.department} icon="school" />
-                  <DetailCard title="Year" value={student?.year} icon="calendar_today" />
-                  <DetailCard title="Email" value={student?.email} icon="mail" />
-                  <DetailCard title="Phone" value={student?.phone} icon="call" />
-                  <DetailCard title="Total Visits" value={student?.total_visits || 0} icon="pin_drop" />
-                </div>
+                {/* ---------- UPDATE PROFILE SECTION ---------- */}
+                {editing ? (
+                  <div className="mt-10 bg-card-background border border-light-gray-border rounded-2xl p-8 shadow-soft">
+                    <h3 className="text-2xl font-bold mb-6">Update Profile</h3>
+                    
+                    {updateError && (
+                      <div className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                        <p className="text-red-600 dark:text-red-400">{updateError}</p>
+                      </div>
+                    )}
 
-                {/* ---------- CTA BUTTON ---------- */}
-                <div className="mt-10 mb-20 flex justify-center">
-                  <button
-                    onClick={() => goTo("/student/qr")}
-                    className="px-8 py-3 rounded-xl bg-primary text-white font-semibold inline-flex items-center gap-2 shadow-soft hover:bg-primary-dark transition"
-                  >
-                    <span className="material-symbols-outlined">qr_code_2</span>
-                    View My QR
-                  </button>
-                </div>
+                    {updateSuccess && (
+                      <div className="mb-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4">
+                        <p className="text-green-600 dark:text-green-400">{updateSuccess}</p>
+                      </div>
+                    )}
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                          Email
+                        </label>
+                        <input
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="w-full p-3 border border-light-gray-border rounded-xl bg-white dark:bg-gray-800 text-dark-text"
+                          placeholder="Enter your email"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                          New Password (leave blank to keep current)
+                        </label>
+                        <input
+                          type="password"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="w-full p-3 border border-light-gray-border rounded-xl bg-white dark:bg-gray-800 text-dark-text"
+                          placeholder="Enter new password"
+                        />
+                      </div>
+
+                      {password && (
+                        <div>
+                          <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                            Confirm Password
+                          </label>
+                          <input
+                            type="password"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            className="w-full p-3 border border-light-gray-border rounded-xl bg-white dark:bg-gray-800 text-dark-text"
+                            placeholder="Confirm new password"
+                          />
+                        </div>
+                      )}
+
+                      <div className="flex gap-4 mt-6">
+                        <button
+                          onClick={handleUpdateProfile}
+                          disabled={updating}
+                          className={`flex-1 px-6 py-3 rounded-xl font-semibold text-white transition ${
+                            updating
+                              ? "bg-gray-400 cursor-not-allowed"
+                              : "bg-primary hover:bg-primary-dark"
+                          }`}
+                        >
+                          {updating ? "Updating..." : "Save Changes"}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditing(false);
+                            setEmail(student?.email || "");
+                            setPassword("");
+                            setConfirmPassword("");
+                            setUpdateError("");
+                            setUpdateSuccess("");
+                          }}
+                          className="px-6 py-3 rounded-xl font-semibold bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* ---------- STUDENT DETAILS GRID ---------- */}
+                    <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                      <DetailCard title="Registration No" value={student?.registration_no} icon="badge" />
+                      <DetailCard title="School" value={student?.school_name} icon="school" />
+                      <DetailCard title="Email" value={student?.email} icon="mail" />
+                      <DetailCard title="Phone" value={student?.phone || "—"} icon="call" />
+                      <DetailCard title="Member Since" value={student?.created_at ? new Date(student.created_at).toLocaleDateString() : "—"} icon="calendar_today" />
+                    </div>
+
+                    {/* ---------- ACTION BUTTONS ---------- */}
+                    <div className="mt-10 mb-20 flex flex-wrap justify-center gap-4">
+                      <button
+                        onClick={() => setEditing(true)}
+                        className="px-8 py-3 rounded-xl bg-primary text-white font-semibold inline-flex items-center gap-2 shadow-soft hover:bg-primary-dark transition"
+                      >
+                        <span className="material-symbols-outlined">edit</span>
+                        Edit Profile
+                      </button>
+                      <button
+                        onClick={() => goTo("/student/qr")}
+                        className="px-8 py-3 rounded-xl bg-gray-700 text-white font-semibold inline-flex items-center gap-2 shadow-soft hover:bg-gray-800 transition"
+                      >
+                        <span className="material-symbols-outlined">qr_code_2</span>
+                        View My QR
+                      </button>
+                    </div>
+                  </>
+                )}
               </>
             )}
 

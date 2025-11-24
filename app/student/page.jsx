@@ -70,10 +70,10 @@ export default function StudentDashboardPage() {
       <div className="flex-1 flex flex-col">
 
         {/* TOP HEADER */}
-        <StudentHeader theme={theme} toggleTheme={toggleTheme} />
+        <StudentHeader theme={theme} toggleTheme={toggleTheme} onLogout={handleLogout} />
 
         {/* BODY CONTENT */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 overflow-y-auto p-4 pb-32 sm:p-6 lg:p-8 lg:pb-10">
           <div className="max-w-7xl mx-auto space-y-8">
 
             {/* 🌟 GRADIENT HERO */}

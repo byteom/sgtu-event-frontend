@@ -120,10 +120,15 @@ export default function StallScanPage() {
       {/* MAIN AREA */}
       <div className="flex-1 flex flex-col">
         {/* TOP HEADER */}
-        <StudentHeader theme={theme} toggleTheme={toggleTheme} title="Scan Stall QR" />
+        <StudentHeader
+          theme={theme}
+          toggleTheme={toggleTheme}
+          title="Scan Stall QR"
+          onLogout={handleLogout}
+        />
 
         {/* BODY CONTENT */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 overflow-y-auto p-4 pb-32 sm:p-6 lg:p-8 lg:pb-10">
           <div className="max-w-2xl mx-auto space-y-6">
             
             <div className="bg-card-background border border-light-gray-border rounded-2xl p-8 shadow-soft">

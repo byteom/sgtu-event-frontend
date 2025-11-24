@@ -122,10 +122,11 @@ export default function StudentQRPage() {
           theme={theme} 
           toggleTheme={toggleTheme} 
           title="My QR Code!"
+          onLogout={handleLogout}
         />
 
         {/* ------- CONTENT ------- */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 overflow-y-auto p-4 pb-32 sm:p-6 lg:p-8 lg:pb-10">
           <div className="max-w-3xl mx-auto">
 
             <div className="bg-white dark:bg-[#1a1f2b] border border-light-gray-border dark:border-gray-700 rounded-3xl p-8 shadow-soft">

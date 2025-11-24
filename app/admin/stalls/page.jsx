@@ -34,7 +34,7 @@ export default function AllStallsPage() {
 
   async function load() {
     try {
-      const res = await api.get("/admin/stalls");
+      const res = await api.get("/stall");
       if (res.data?.success) {
         setAllStalls(res.data.data || []);
         // Extract unique school names
@@ -43,6 +43,7 @@ export default function AllStallsPage() {
       }
     } catch (error) {
       console.error("API Error:", error);
+      alert(error.response?.data?.message || "Failed to load stalls");
     }
   }
 

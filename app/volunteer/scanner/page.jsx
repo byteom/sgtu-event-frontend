@@ -108,7 +108,27 @@ export default function VolunteerScannerPage() {
 
         if (!mountedRef.current) return;
 
-        console.log("📷 Initializing cameras...");
+        console.log("📷 Requesting camera permission...");
+        
+        // First, request camera permission explicitly
+        try {
+          await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: "environment" } 
+          }).then(stream => {
+            // Stop the stream immediately - we just needed permission
+            stream.getTracks().forEach(track => track.stop());
+            console.log("✅ Camera permission granted");
+          });
+        } catch (permErr) {
+          console.warn("⚠️ Camera permission denied:", permErr.name);
+          setError("Camera permission denied. Please allow camera access and refresh.");
+          setStatus("error");
+          return;
+        }
+        
+        if (!mountedRef.current) return;
+        
+        console.log("📷 Getting available cameras...");
         // Get available cameras
         const Html5Qrcode = window.Html5Qrcode;
         
@@ -161,6 +181,19 @@ export default function VolunteerScannerPage() {
           if (!mountedRef.current) return;
 
           try {
+            // Request permission first on retry too
+            try {
+              await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "environment" } 
+              }).then(stream => {
+                stream.getTracks().forEach(track => track.stop());
+              });
+            } catch (permErr) {
+              setError("Camera permission denied. Please allow camera access and refresh.");
+              setStatus("error");
+              return;
+            }
+            
             const Html5Qrcode = window.Html5Qrcode;
             if (!Html5Qrcode) {
               throw new Error("Library not loaded");
@@ -641,6 +674,7 @@ export default function VolunteerScannerPage() {
           theme={theme}
           toggleTheme={toggleTheme}
           volunteerName={volunteerName}
+          onLogout={handleLogout}
         />
 
         {/* SCANNER */}

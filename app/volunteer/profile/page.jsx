@@ -88,11 +88,11 @@ const handleLogout = () => {
         {/* Header */}
         {/* <VolunteerHeader theme={theme} toggleTheme={toggleTheme} /> */}
         <VolunteerHeader
-  theme={theme}
-  toggleTheme={toggleTheme}
-  volunteerName={volunteer?.full_name || "Volunteer"}
-/>
-
+          theme={theme}
+          toggleTheme={toggleTheme}
+          volunteerName={volunteer?.full_name || "Volunteer"}
+          onLogout={handleLogout}
+        />
         
 
         {/* Content */}

@@ -132,6 +132,7 @@ const handleLogout = () => {
           theme={theme}
           toggleTheme={toggleTheme}
           volunteerName={volunteerName}
+          onLogout={handleLogout}
         />
 
         {/* MAIN BODY */}

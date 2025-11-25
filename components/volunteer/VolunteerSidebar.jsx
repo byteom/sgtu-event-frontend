@@ -8,9 +8,8 @@ export default function VolunteerSidebar({ onLogout }) {
 
   return (
     <aside
-      className="hidden lg:flex w-64 h-screen flex-col
-      bg-card-background dark:bg-card-background
-      border-r border-light-gray-border dark:border-gray-800 p-6"
+      className="hidden lg:flex lg:sticky lg:top-0 lg:self-start w-64 min-h-screen flex-col
+      bg-card-background border-r border-light-gray-border p-6"
     >
       {/* TOP TITLE */}
       <div className="flex items-center justify-center gap-3 mb-10">

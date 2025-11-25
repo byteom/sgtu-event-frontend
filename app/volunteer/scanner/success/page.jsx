@@ -78,6 +78,7 @@ function ScanSuccessContent() {
           theme={theme}
           toggleTheme={toggleTheme}
           volunteerName={"Volunteer"}
+          onLogout={handleLogout}
         />
 
         {/* MAIN CONTENT - Optimized for High Volume */}

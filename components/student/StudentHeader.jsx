@@ -48,7 +48,7 @@ export default function StudentHeader({ theme, toggleTheme, onLogout, title }) {
   };
 
   return (
-    <header className="sticky top-0 z-10 bg-light-background/80 dark:bg-dark-background/80 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800 flex items-center justify-between h-20 px-6 lg:px-10">
+    <header className="sticky top-0 z-10 bg-card-background border-b border-light-gray-border flex items-center justify-between h-20 px-6 lg:px-10">
       {/* LEFT: LOGO + TITLE */}
       <div className="flex items-center gap-4">
         <Image

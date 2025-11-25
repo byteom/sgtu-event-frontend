@@ -137,7 +137,12 @@ export default function FeedbackPage() {
             
             {/* HERO SECTION */}
             <section className="relative flex flex-col items-stretch justify-start rounded-3xl overflow-hidden shadow-soft text-white">
-              <div className="absolute inset-0 bg-gradient-to-br from-[#2B6CB0] to-[#1E3A8A]"></div>
+              <div
+                className="absolute inset-0"
+                style={{
+                  backgroundImage: "linear-gradient(135deg, var(--primary), var(--primary-dark))",
+                }}
+              ></div>
               <div
                 className="absolute inset-0 opacity-20"
                 style={{
@@ -147,8 +152,8 @@ export default function FeedbackPage() {
               />
               <div className="relative p-8 flex flex-col items-center gap-5">
                 <div className="flex w-16 h-16 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/20 backdrop-blur-sm">
-                  <span
-                    className="material-symbols-outlined text-[#ECC94B]"
+                <span
+                    className="material-symbols-outlined text-accent"
                     style={{ fontSize: "48px", fontVariationSettings: "'FILL' 1, 'wght' 500" }}
                   >
                     rate_review
@@ -157,7 +162,7 @@ export default function FeedbackPage() {
                 <h2 className="font-display text-3xl font-bold tracking-[-0.02em] text-center">
                   Scan Stall QR Code
                 </h2>
-                <p className="text-blue-200 opacity-90 text-center">
+                <p className="text-white/80 text-center">
                   Scan a stall's QR code to provide feedback
                 </p>
               </div>
@@ -167,8 +172,8 @@ export default function FeedbackPage() {
             <div className="bg-card-background border border-light-gray-border rounded-2xl p-8 shadow-soft">
               {!scanning ? (
                 <div className="flex flex-col items-center gap-6">
-                  <div className="w-32 h-32 bg-blue-100 rounded-full flex items-center justify-center">
-                    <span className="material-symbols-outlined text-primary text-6xl">qr_code_scanner</span>
+                  <div className="w-36 h-36 bg-primary/10 rounded-full flex items-center justify-center">
+                    <span className="material-symbols-outlined text-primary text-7xl">qr_code_scanner</span>
                   </div>
                   <h3 className="text-2xl font-bold">Ready to Scan</h3>
                   <p className="text-gray-600 dark:text-gray-300 text-center">
@@ -186,7 +191,7 @@ export default function FeedbackPage() {
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-6">
-                  <div className="w-full max-w-md bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-md border border-light-gray-border">
+                  <div className="w-full max-w-md bg-card-background dark:bg-gray-800 p-4 rounded-2xl shadow-md border border-light-gray-border">
                     <video id="qr-video" className="w-full rounded-xl" />
                   </div>
                   {error && (
@@ -211,12 +216,12 @@ export default function FeedbackPage() {
             </div>
 
             {/* INFO SECTION */}
-            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-2xl p-6">
+            <div className="bg-accent/10 dark:bg-accent/20 border border-accent/30 dark:border-accent/40 rounded-2xl p-6">
               <div className="flex items-start gap-4">
-                <span className="material-symbols-outlined text-yellow-600 dark:text-yellow-400 text-3xl">info</span>
+                <span className="material-symbols-outlined text-accent dark:text-accent text-3xl">info</span>
                 <div>
-                  <h4 className="font-semibold text-yellow-800 dark:text-yellow-300 mb-2">Important Notes</h4>
-                  <ul className="text-sm text-yellow-700 dark:text-yellow-400 space-y-1">
+                  <h4 className="font-semibold text-dark-text dark:text-dark-text mb-2">Important Notes</h4>
+                  <ul className="text-sm text-gray-700 dark:text-gray-550 space-y-1">
                     <li>• You must be checked in at the event to scan stalls</li>
                     <li>• Each stall can only receive one feedback from you</li>
                     <li>• Rating should be between 1 and 5 stars</li>

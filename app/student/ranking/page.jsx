@@ -184,18 +184,23 @@ export default function RankingPage() {
             
             {/* HERO SECTION */}
             <section className="relative flex flex-col items-stretch justify-start rounded-3xl overflow-hidden shadow-soft text-white">
-              <div className="absolute inset-0 bg-gradient-to-br from-[#F59E0B] to-[#D97706]"></div>
+              <div
+                className="absolute inset-0"
+                style={{
+                  backgroundImage: "linear-gradient(135deg, var(--primary), var(--primary-dark))",
+                }}
+              ></div>
               <div
                 className="absolute inset-0 opacity-20"
                 style={{
                   backgroundImage:
-                    "radial-gradient(circle at top right, rgba(255,255,255,0.2), transparent 50%), radial-gradient(circle at bottom left, rgba(255,255,255,0.15), transparent 60%)",
+                    "radial-gradient(circle at top right, rgba(255,255,255,0.2), transparent 50%), radial-gradient(circle at bottom left, rgba(236,201,75,0.15), transparent 60%)",
                 }}
               />
               <div className="relative p-8 flex flex-col items-center gap-5">
                 <div className="flex w-16 h-16 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/20 backdrop-blur-sm">
                   <span
-                    className="material-symbols-outlined text-white"
+                    className="material-symbols-outlined text-accent"
                     style={{ fontSize: "48px", fontVariationSettings: "'FILL' 1, 'wght' 500" }}
                   >
                     emoji_events
@@ -204,7 +209,7 @@ export default function RankingPage() {
                 <h2 className="font-display text-3xl font-bold tracking-[-0.02em] text-center">
                   Rank Your School's Stalls
                 </h2>
-                <p className="text-white/90 text-center">
+                <p className="text-white/80 text-center">
                   Select your top 3 favorite stalls from YOUR SCHOOL ONLY
                 </p>
               </div>
@@ -218,8 +223,8 @@ export default function RankingPage() {
               /* ALREADY SUBMITTED VIEW */
               <div className="bg-card-background border border-light-gray-border rounded-2xl p-8 shadow-soft">
                 <div className="flex flex-col items-center gap-6">
-                  <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
-                    <span className="material-symbols-outlined text-green-600 text-5xl">check_circle</span>
+                  <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center">
+                    <span className="material-symbols-outlined text-primary text-5xl">check_circle</span>
                   </div>
                   <h3 className="text-2xl font-bold">Rankings Submitted!</h3>
                   <p className="text-gray-600 dark:text-gray-300 text-center">
@@ -230,9 +235,9 @@ export default function RankingPage() {
                     {submittedRankings.rankings?.map((r, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center gap-4 p-4 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 rounded-xl border border-yellow-200 dark:border-yellow-800"
+                        className="flex items-center gap-4 p-4 bg-accent/10 dark:bg-accent/20 rounded-xl border border-accent/30 dark:border-accent/40"
                       >
-                        <div className="flex items-center justify-center w-12 h-12 rounded-full bg-yellow-500 text-white font-bold text-xl">
+                        <div className="flex items-center justify-center w-12 h-12 rounded-full bg-accent text-white font-bold text-xl">
                           {r.rank}
                         </div>
                         <div className="flex-1">
@@ -258,12 +263,12 @@ export default function RankingPage() {
                 )}
 
                 {/* INSTRUCTIONS */}
-                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-2xl p-6">
+                <div className="bg-primary/10 dark:bg-primary/20 border border-primary/30 dark:border-primary/40 rounded-2xl p-6">
                   <div className="flex items-start gap-4">
-                    <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-3xl">info</span>
+                    <span className="material-symbols-outlined text-primary dark:text-primary text-3xl">info</span>
                     <div>
-                      <h4 className="font-semibold text-blue-800 dark:text-blue-300 mb-2">Instructions</h4>
-                      <ul className="text-sm text-blue-700 dark:text-blue-400 space-y-1">
+                      <h4 className="font-semibold text-dark-text dark:text-dark-text mb-2">Instructions</h4>
+                      <ul className="text-sm text-gray-700 dark:text-gray-550 space-y-1">
                         <li>• Select exactly 3 stalls from YOUR SCHOOL ONLY</li>
                         <li>• Assign ranks: 1 (best), 2 (second), 3 (third)</li>
                         <li>• This is a ONE-TIME submission and cannot be changed</li>
@@ -282,8 +287,8 @@ export default function RankingPage() {
                         key={stall.stall_id}
                         className={`bg-card-background border-2 rounded-2xl p-6 shadow-soft transition-all ${
                           selectedRank
-                            ? "border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20"
-                            : "border-light-gray-border hover:border-gray-300"
+                            ? "border-accent bg-accent/10 dark:bg-accent/20"
+                            : "border-light-gray-border hover:border-primary/50"
                         }`}
                       >
                         <div className="mb-4">
@@ -304,7 +309,7 @@ export default function RankingPage() {
                               onClick={() => handleRankSelect(stall.stall_id, rank)}
                               className={`flex-1 py-2 px-3 rounded-lg font-semibold transition ${
                                 selectedRank === rank
-                                  ? "bg-yellow-500 text-white shadow-md"
+                                  ? "bg-accent text-white shadow-md"
                                   : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                               }`}
                             >
@@ -315,7 +320,7 @@ export default function RankingPage() {
 
                         {selectedRank && (
                           <div className="mt-3 text-center">
-                            <span className="text-sm font-semibold text-yellow-600 dark:text-yellow-400">
+                            <span className="text-sm font-semibold text-accent dark:text-accent">
                               Selected as Rank {selectedRank}
                             </span>
                           </div>
@@ -332,7 +337,7 @@ export default function RankingPage() {
                     disabled={submitting || Object.keys(rankings).length !== 3}
                     className={`px-8 py-4 rounded-xl font-semibold text-white transition shadow-md ${
                       Object.keys(rankings).length === 3 && !submitting
-                        ? "bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600"
+                        ? "bg-primary hover:bg-primary-dark"
                         : "bg-gray-400 cursor-not-allowed"
                     }`}
                   >

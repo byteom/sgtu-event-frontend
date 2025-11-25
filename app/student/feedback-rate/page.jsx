@@ -22,6 +22,7 @@ function FeedbackRateContent() {
   const [rating, setRating] = useState(null);
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [navigatingBack, setNavigatingBack] = useState(false);
   const [error, setError] = useState("");
 
   // ------------------ THEME HANDLING ------------------
@@ -128,95 +129,125 @@ function FeedbackRateContent() {
         />
 
         {/* BODY CONTENT */}
-        <main className="flex-1 overflow-y-auto p-4 pb-32 sm:p-6 lg:p-8 lg:pb-10">
-          <div className="max-w-2xl mx-auto space-y-6">
-            
+        <main className="relative flex-1 overflow-y-auto p-4 pb-32 sm:p-6 lg:p-8 lg:pb-10">
+          {navigatingBack && (
+            <div className="fixed inset-0 bg-white/80 dark:bg-dark-background/80 z-50 flex flex-col items-center justify-center gap-3">
+              <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-gray-550 font-semibold">Taking you back to Feedback…</p>
+            </div>
+          )}
+          <div className="max-w-5xl mx-auto space-y-8">
             {/* ERROR MESSAGE */}
             {error && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl p-4 shadow-soft">
                 <p className="text-red-600 dark:text-red-400 text-center">{error}</p>
               </div>
             )}
 
-            {/* MAIN CARD */}
-            <div className="bg-card-background border border-light-gray-border rounded-2xl p-8 shadow-soft">
-              <div className="flex flex-col items-center gap-6">
-                
-                <h1 className="text-3xl font-bold text-dark-text text-center">
-                  Rate This Stall
-                </h1>
-
-                {/* STAR RATING */}
-                <div className="flex gap-2">
-                  {ratingOptions.map((num) => (
-                    <button
-                      key={num}
-                      onClick={() => setRating(num)}
-                      className={`w-16 h-16 rounded-xl font-bold text-2xl transition-all ${
-                        rating === num
-                          ? "bg-primary text-white shadow-lg scale-110"
-                          : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                      }`}
-                    >
-                      {num}
-                    </button>
-                  ))}
-                </div>
-
-                {rating && (
-                  <div className="text-center">
-                    <p className="text-lg font-semibold text-primary">
-                      You selected {rating} {rating === 1 ? "star" : "stars"}
+            <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+              {/* MAIN CARD */}
+              <div className="bg-card-background border border-light-gray-border rounded-3xl p-8 shadow-soft">
+                <div className="flex flex-col gap-8">
+                  <div className="text-center space-y-3">
+                    <h1 className="text-3xl font-bold text-dark-text">Rate This Stall</h1>
+                    <p className="text-gray-550">
+                      Pick a score between 1 and 5 stars. Higher scores mean a better experience.
                     </p>
                   </div>
-                )}
 
-                {/* COMMENT BOX */}
-                {rating && (
-                  <div className="w-full">
-                    <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-                      Comment (Optional)
-                    </label>
-                    <textarea
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
-                      placeholder="Share your experience about this stall..."
-                      className="w-full p-4 border border-light-gray-border rounded-xl bg-white dark:bg-gray-800 text-dark-text resize-none"
-                      rows={4}
-                    />
+                  {/* STAR RATING */}
+                  <div className="flex flex-wrap justify-center gap-3">
+                    {ratingOptions.map((num) => (
+                      <button
+                        key={num}
+                        onClick={() => setRating(num)}
+                        className={`w-16 h-16 rounded-2xl font-semibold text-2xl transition-all active:scale-95 border ${
+                          rating === num
+                            ? "bg-primary text-white border-primary shadow-lg scale-105"
+                            : "bg-white border-light-gray-border text-gray-550 hover:shadow-sm"
+                        }`}
+                      >
+                        {num}
+                      </button>
+                    ))}
                   </div>
-                )}
 
-                {/* SUBMIT BUTTON */}
-                <button
-                  onClick={submitFeedback}
-                  disabled={!rating || submitting}
-                  className={`w-full px-8 py-4 rounded-xl font-semibold text-white transition shadow-md ${
-                    rating && !submitting
-                      ? "bg-primary hover:bg-primary-dark"
-                      : "bg-gray-400 cursor-not-allowed"
-                  }`}
-                >
-                  {submitting ? "Submitting..." : "Submit Feedback"}
-                </button>
+                  {rating && (
+                    <div className="text-center">
+                      <p className="text-lg font-semibold text-primary">
+                        You selected {rating} {rating === 1 ? "star" : "stars"}
+                      </p>
+                      <p className="text-sm text-gray-550 mt-2">Add a short note so stall owners know what to improve.</p>
+                    </div>
+                  )}
 
-                {/* BACK BUTTON */}
-                <button
-                  onClick={() => router.push("/student/feedback")}
-                  className="text-gray-600 dark:text-gray-400 hover:text-primary transition"
-                >
-                  ← Back to Feedback
-                </button>
+                  {/* COMMENT BOX */}
+                  {rating && (
+                    <div className="w-full">
+                      <label className="block text-sm font-semibold mb-2 text-gray-550">
+                        Comment (Optional)
+                      </label>
+                      <textarea
+                        value={comment}
+                        onChange={(e) => setComment(e.target.value)}
+                        placeholder="Share your experience about this stall..."
+                        className="w-full p-4 border border-light-gray-border rounded-2xl bg-white text-dark-text placeholder:text-gray-400 resize-none focus:ring-2 focus:ring-primary focus:outline-none"
+                        rows={4}
+                      />
+                    </div>
+                  )}
+
+                  {/* SUBMIT BUTTON */}
+                  <div className="flex flex-col gap-3">
+                    <button
+                      onClick={submitFeedback}
+                      disabled={!rating || submitting}
+                      className={`w-full px-8 py-4 rounded-2xl font-semibold text-white transition shadow-md ${
+                        rating && !submitting
+                          ? "bg-primary hover:bg-primary-dark"
+                          : "bg-gray-400 cursor-not-allowed"
+                      }`}
+                    >
+                      {submitting ? "Submitting..." : "Submit Feedback"}
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setNavigatingBack(true);
+                        router.push("/student/feedback");
+                      }}
+                      className="text-gray-550 hover:text-primary transition text-sm font-semibold disabled:opacity-60"
+                      disabled={navigatingBack}
+                    >
+                      ← Back to Feedback
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* SIDE CARDS */}
+              <div className="space-y-6">
+                <div className="bg-card-background border border-light-gray-border rounded-3xl p-6 shadow-soft">
+                  <div className="flex items-start gap-4">
+                    <span className="material-symbols-outlined text-primary text-3xl">info</span>
+                    <div>
+                      <h4 className="font-semibold text-dark-text mb-2">Tips for better feedback</h4>
+                      <ul className="text-sm text-gray-550 space-y-1 list-disc pl-4">
+                        <li>Mention service, taste, cleanliness, or presentation.</li>
+                        <li>Be honest but respectful—teams read every response.</li>
+                        <li>Optional comments help organizers highlight top stalls.</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-card-background border border-light-gray-border rounded-3xl p-5 text-center shadow-soft">
+                  <p className="text-sm text-gray-550">
+                    💡 Rating scale: 1 (Poor) · 5 (Excellent). You can only submit once per stall.
+                  </p>
+                </div>
               </div>
             </div>
-
-            {/* INFO CARD */}
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
-              <p className="text-sm text-blue-700 dark:text-blue-400 text-center">
-                💡 Rating scale: 1 (Poor) to 5 (Excellent)
-              </p>
-            </div>
-
           </div>
         </main>
       </div>

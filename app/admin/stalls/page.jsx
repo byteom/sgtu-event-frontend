@@ -7,6 +7,8 @@ import AdminMobileNav from "@/components/admin/AdminMobileNav";
 import api from "@/lib/api";
 import { filterData, filterByField, sortData, paginateData, getUniqueValues } from "@/lib/utils";
 import { useAdminAuth } from "@/hooks/useAuth";
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 export default function AllStallsPage() {
   const { isAuthenticated, isChecking } = useAdminAuth();
@@ -18,6 +20,8 @@ export default function AllStallsPage() {
   const [showDetailSidebar, setShowDetailSidebar] = useState(false);
   const [qrCodeImage, setQrCodeImage] = useState(null);
   const [loadingQR, setLoadingQR] = useState(false);
+  const [stallStats, setStallStats] = useState(null);
+  const [loadingStats, setLoadingStats] = useState(false);
   const [schools, setSchools] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [schoolFilter, setSchoolFilter] = useState("all");
@@ -46,6 +50,68 @@ export default function AllStallsPage() {
       alert(error.response?.data?.message || "Failed to load stalls");
     }
   }
+
+  // Download stalls data as Excel
+  const handleDownloadExcel = () => {
+    try {
+      // Prepare data for Excel export
+      const excelData = allStalls.map((stall, index) => ({
+        'S.No': index + 1,
+        'Stall ID': `SGT-${String(stall.stall_number || '').padStart(3, '0')}`,
+        'Stall Number': stall.stall_number || '',
+        'Stall Name': stall.stall_name || '',
+        'School/Department': stall.school_name || '',
+        'Description': stall.description || '',
+        'Location': stall.location || '',
+        'Total Feedback': stall.total_feedback_count || 0,
+        'Rank 1 Votes': stall.rank_1_votes || 0,
+        'Rank 2 Votes': stall.rank_2_votes || 0,
+        'Rank 3 Votes': stall.rank_3_votes || 0,
+        'Weighted Score': stall.weighted_score || 0,
+        'Status': stall.is_active ? 'Active' : 'Inactive',
+        'Created At': stall.created_at ? new Date(stall.created_at).toLocaleString() : '',
+        'Updated At': stall.updated_at ? new Date(stall.updated_at).toLocaleString() : ''
+      }));
+
+      // Create workbook and worksheet
+      const worksheet = XLSX.utils.json_to_sheet(excelData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Stalls');
+
+      // Set column widths for better readability
+      worksheet['!cols'] = [
+        { wch: 6 },  // S.No
+        { wch: 12 }, // Stall ID
+        { wch: 12 }, // Stall Number
+        { wch: 25 }, // Stall Name
+        { wch: 20 }, // School/Department
+        { wch: 35 }, // Description
+        { wch: 15 }, // Location
+        { wch: 15 }, // Total Feedback
+        { wch: 13 }, // Rank 1 Votes
+        { wch: 13 }, // Rank 2 Votes
+        { wch: 13 }, // Rank 3 Votes
+        { wch: 15 }, // Weighted Score
+        { wch: 10 }, // Status
+        { wch: 18 }, // Created At
+        { wch: 18 }  // Updated At
+      ];
+
+      // Generate file name with timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const fileName = `SGTU_Stalls_${timestamp}.xlsx`;
+
+      // Export to Excel
+      const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      saveAs(data, fileName);
+
+      alert(`Excel file downloaded successfully! Total stalls: ${allStalls.length}`);
+    } catch (error) {
+      console.error('Excel download error:', error);
+      alert('Failed to download Excel file. Please try again.');
+    }
+  };
 
   useEffect(() => {
     if (!isChecking && isAuthenticated) {
@@ -180,21 +246,26 @@ export default function AllStallsPage() {
     setSelectedStall(stall);
     setShowDetailSidebar(true);
     setQrCodeImage(null);
+    setStallStats(null);
     
-    // Fetch QR code if available
-    if (stall.id) {
-      try {
-        setLoadingQR(true);
-        const res = await api.get(`/stall/${stall.id}/qr-code`);
-        if (res.data?.success && res.data.data?.qr_code) {
-          setQrCodeImage(res.data.data.qr_code);
-        }
-      } catch (error) {
-        console.error("Error fetching QR code:", error);
-      } finally {
-        setLoadingQR(false);
+    if (!stall.id) return;
+
+    // Parallel fetch: QR + stats
+    try {
+      setLoadingQR(true);
+      const res = await api.get(`/stall/${stall.id}/qr-code`);
+      if (res.data?.success && res.data.data?.qr_code) {
+        setQrCodeImage(res.data.data.qr_code);
       }
+    } catch (error) {
+      console.error("Error fetching QR code:", error);
+    } finally {
+      setLoadingQR(false);
     }
+
+    // Stats feature removed due to backend compatibility issues
+    setLoadingStats(false);
+    setStallStats(null);
   };
 
   const handleDownloadQR = async () => {
@@ -284,9 +355,12 @@ export default function AllStallsPage() {
               Showing {stalls.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} - {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} stalls
             </div>
             <div className="flex gap-2">
-              <button className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm border border-light-gray-border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition">
-                <span className="material-symbols-outlined text-lg">upload_file</span>
-                Upload via Excel
+              <button 
+                onClick={handleDownloadExcel}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm border border-light-gray-border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+              >
+                <span className="material-symbols-outlined text-lg">download</span>
+                Download Excel
               </button>
               <button 
                 onClick={() => {
@@ -355,7 +429,7 @@ export default function AllStallsPage() {
                 <div className="font-medium text-dark-text dark:text-gray-200">{s.stall_name}</div>
                 <div className="text-gray-600 dark:text-gray-400">{s.school_name || "—"}</div>
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-600 dark:text-gray-400">{s.feedback_count || 0}</span>
+                  <span className="text-gray-600 dark:text-gray-400">{s.total_feedback_count || 0}</span>
                   <div className="flex gap-1 ml-auto">
                     <button
                       onClick={(e) => {
@@ -637,6 +711,7 @@ export default function AllStallsPage() {
                     setShowDetailSidebar(false);
                     setSelectedStall(null);
                     setQrCodeImage(null);
+                    setStallStats(null);
                   }}
                   className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                 >
@@ -727,15 +802,11 @@ export default function AllStallsPage() {
                 {/* Feedback Analytics */}
                 <div>
                   <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-4 uppercase tracking-wide">Feedback Analytics</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4">
                     <div className="bg-soft-background rounded-lg p-4 border border-light-gray-border">
-                      <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total Feedback</div>
-                      <div className="text-2xl font-bold text-dark-text">{selectedStall.total_feedback_count || selectedStall.feedback_count || 0}</div>
-                    </div>
-                    <div className="bg-soft-background rounded-lg p-4 border border-light-gray-border">
-                      <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Average Rating</div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total Feedback Received</div>
                       <div className="text-2xl font-bold text-dark-text">
-                        {selectedStall.avg_rating ? `${selectedStall.avg_rating.toFixed(1)} / 5` : "N/A"}
+                        {selectedStall.total_feedback_count ?? selectedStall.feedback_count ?? 0}
                       </div>
                     </div>
                   </div>

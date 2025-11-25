@@ -8,6 +8,8 @@ import api from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { filterData, filterByField, sortData, paginateData } from "@/lib/utils";
 import { useAdminAuth } from "@/hooks/useAuth";
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 export default function AdminScansPage() {
   const { isAuthenticated, isChecking } = useAdminAuth();
@@ -33,6 +35,51 @@ export default function AdminScansPage() {
       console.error("Error fetching scans:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Download scans data as Excel
+  const handleDownloadExcel = () => {
+    try {
+      const excelData = allScans.map((scan, index) => ({
+        'S.No': index + 1,
+        'Scan ID': scan.id || '',
+        'Student Name': scan.student_name || '',
+        'Registration No': scan.registration_no || scan.student_registration_no || '',
+        'Volunteer Name': scan.volunteer_name || '',
+        'Scan Type': scan.scan_type || '',
+        'Scan Number': scan.scan_number || '',
+        'Scanned At': scan.scanned_at ? new Date(scan.scanned_at).toLocaleString() : '',
+        'Duration (Minutes)': scan.duration_minutes || ''
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(excelData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance Log');
+
+      worksheet['!cols'] = [
+        { wch: 6 },  // S.No
+        { wch: 12 }, // Scan ID
+        { wch: 25 }, // Student Name
+        { wch: 18 }, // Registration No
+        { wch: 20 }, // Volunteer Name
+        { wch: 12 }, // Scan Type
+        { wch: 12 }, // Scan Number
+        { wch: 20 }, // Scanned At
+        { wch: 18 }  // Duration
+      ];
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const fileName = `SGTU_Attendance_Log_${timestamp}.xlsx`;
+
+      const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      saveAs(data, fileName);
+
+      alert(`Excel file downloaded successfully! Total records: ${allScans.length}`);
+    } catch (error) {
+      console.error('Excel download error:', error);
+      alert('Failed to download Excel file. Please try again.');
     }
   };
 
@@ -149,14 +196,13 @@ export default function AdminScansPage() {
               <h1 className="text-xl sm:text-2xl font-bold mb-1 text-dark-text dark:text-white">Attendance Log</h1>
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <button className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 text-sm border border-light-gray-border rounded-lg hover:bg-gray-50 transition">
-                <span className="material-symbols-outlined text-lg">upload</span>
-                <span className="hidden sm:inline">Export</span>
-              </button>
-              <button className="flex-1 sm:flex-initial px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-dark transition text-sm font-medium flex items-center justify-center gap-2">
-                <span className="material-symbols-outlined text-lg">add</span>
-                <span className="hidden sm:inline">Add Scan</span>
-                <span className="sm:hidden">Add</span>
+              <button 
+                onClick={handleDownloadExcel}
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 text-sm border border-light-gray-border rounded-lg hover:bg-gray-50 transition"
+              >
+                <span className="material-symbols-outlined text-lg">download</span>
+                <span className="hidden sm:inline">Download Excel</span>
+                <span className="sm:hidden">Download</span>
               </button>
             </div>
           </div>

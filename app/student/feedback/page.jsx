@@ -14,6 +14,8 @@ export default function FeedbackPage() {
   const router = useRouter();
   const [theme, setTheme] = useState("light");
   const [scanning, setScanning] = useState(false);
+  const [scannerLoading, setScannerLoading] = useState(false);
+  const [transitioningToRate, setTransitioningToRate] = useState(false);
   const [scannedStall, setScannedStall] = useState(null);
   const [error, setError] = useState("");
 
@@ -54,6 +56,7 @@ export default function FeedbackPage() {
       try {
         const QrScanner = (await import("qr-scanner")).default;
         video = document.getElementById("qr-video");
+        setScannerLoading(true);
 
         scanner = new QrScanner(
           video,
@@ -70,6 +73,8 @@ export default function FeedbackPage() {
                 const stallData = res.data.data;
                 setScannedStall(stallData);
                 setScanning(false);
+                setTransitioningToRate(true);
+                setScannerLoading(false);
                 scanner.stop();
                 
                 // Navigate to feedback rate page with stall info
@@ -85,10 +90,12 @@ export default function FeedbackPage() {
         );
 
         scanner.start();
+        setScannerLoading(false);
       } catch (err) {
         console.error("Scanner error:", err);
         setError("Failed to load camera");
         setScanning(false);
+        setScannerLoading(false);
       }
     }
 
@@ -96,6 +103,7 @@ export default function FeedbackPage() {
 
     return () => {
       if (scanner) scanner.stop();
+      setScannerLoading(false);
     };
   }, [scanning, router]);
 
@@ -182,6 +190,8 @@ export default function FeedbackPage() {
                   <button
                     onClick={() => {
                       setScanning(true);
+                      setScannerLoading(true);
+                      setTransitioningToRate(false);
                       setError("");
                     }}
                     className="px-8 py-4 bg-primary text-white font-semibold rounded-xl hover:bg-primary-dark transition shadow-md"
@@ -191,8 +201,14 @@ export default function FeedbackPage() {
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-6">
-                  <div className="w-full max-w-md bg-card-background dark:bg-gray-800 p-4 rounded-2xl shadow-md border border-light-gray-border">
-                    <video id="qr-video" className="w-full rounded-xl" />
+                    <div className="w-full max-w-md bg-card-background dark:bg-gray-800 p-4 rounded-2xl shadow-md border border-light-gray-border relative">
+                    {scannerLoading && (
+                        <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/60 rounded-2xl flex flex-col items-center justify-center gap-3 text-gray-600">
+                          <div className="h-10 w-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                          <p className="text-sm text-gray-550">Opening camera…</p>
+                        </div>
+                      )}
+                      <video id="qr-video" className="w-full rounded-xl" />
                   </div>
                   {error && (
                     <div className="w-full max-w-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
@@ -202,6 +218,8 @@ export default function FeedbackPage() {
                   <button
                     onClick={() => {
                       setScanning(false);
+                      setScannerLoading(false);
+                      setTransitioningToRate(false);
                       setError("");
                     }}
                     className="px-6 py-3 bg-gray-500 text-white font-semibold rounded-xl hover:bg-gray-600 transition"
@@ -232,6 +250,12 @@ export default function FeedbackPage() {
             </div>
 
           </div>
+          {transitioningToRate && (
+            <div className="fixed inset-0 bg-white/80 dark:bg-dark-background/80 z-40 flex flex-col items-center justify-center gap-3">
+              <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-gray-600 dark:text-gray-300 font-semibold">Opening feedback form…</p>
+            </div>
+          )}
         </main>
       </div>
 

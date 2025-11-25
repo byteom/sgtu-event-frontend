@@ -7,6 +7,8 @@ import AdminMobileNav from "@/components/admin/AdminMobileNav";
 import api from "@/lib/api";
 import { filterData, filterByField, sortData, paginateData, getUniqueValues } from "@/lib/utils";
 import { useAdminAuth } from "@/hooks/useAuth";
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 export default function AdminStudentsPage() {
   const { isAuthenticated, isChecking } = useAdminAuth();
@@ -32,6 +34,53 @@ export default function AdminStudentsPage() {
       console.error(e);
     } finally { setLoading(false); }
   }
+
+  // Download students data as Excel
+  const handleDownloadExcel = () => {
+    try {
+      const excelData = allStudents.map((student, index) => ({
+        'S.No': index + 1,
+        'Student ID': student.id || '',
+        'Registration No': student.registration_no || '',
+        'Full Name': student.full_name || '',
+        'Email': student.email || '',
+        'School/Department': student.school_name || '',
+        'Total Scans': student.total_scans || 0,
+        'Inside Event': student.is_inside_event ? 'Yes' : 'No',
+        'Checked In At': student.checked_in_at ? new Date(student.checked_in_at).toLocaleString() : '',
+        'Created At': student.created_at ? new Date(student.created_at).toLocaleString() : ''
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(excelData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Students');
+
+      worksheet['!cols'] = [
+        { wch: 6 },  // S.No
+        { wch: 12 }, // Student ID
+        { wch: 18 }, // Registration No
+        { wch: 25 }, // Full Name
+        { wch: 30 }, // Email
+        { wch: 20 }, // School/Department
+        { wch: 12 }, // Total Scans
+        { wch: 12 }, // Inside Event
+        { wch: 18 }, // Checked In At
+        { wch: 18 }  // Created At
+      ];
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const fileName = `SGTU_Students_${timestamp}.xlsx`;
+
+      const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      saveAs(data, fileName);
+
+      alert(`Excel file downloaded successfully! Total students: ${allStudents.length}`);
+    } catch (error) {
+      console.error('Excel download error:', error);
+      alert('Failed to download Excel file. Please try again.');
+    }
+  };
 
   useEffect(() => {
     if (!isChecking && isAuthenticated) {
@@ -170,14 +219,13 @@ export default function AdminStudentsPage() {
                 Showing {students.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} - {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} students
               </div>
               <div className="flex gap-2">
-                <button className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm border border-light-gray-border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition">
-                  <span className="material-symbols-outlined text-lg">upload_file</span>
-                  <span className="hidden sm:inline">Upload Excel</span>
-                  <span className="sm:hidden">Upload</span>
-                </button>
-                <button className="px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-dark transition text-sm font-medium flex items-center justify-center gap-2">
-                  <span className="material-symbols-outlined text-lg">add</span>
-                  Add Student
+                <button 
+                  onClick={handleDownloadExcel}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm border border-light-gray-border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                >
+                  <span className="material-symbols-outlined text-lg">download</span>
+                  <span className="hidden sm:inline">Download Excel</span>
+                  <span className="sm:hidden">Download</span>
                 </button>
               </div>
             </div>

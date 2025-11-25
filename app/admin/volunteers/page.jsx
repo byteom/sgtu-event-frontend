@@ -8,6 +8,8 @@ import api from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { filterData, filterByField, sortData, paginateData, getUniqueValues } from "@/lib/utils";
 import { useAdminAuth } from "@/hooks/useAuth";
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 export default function AdminVolunteersPage() {
   const { isAuthenticated, isChecking } = useAdminAuth();
@@ -36,6 +38,53 @@ export default function AdminVolunteersPage() {
       console.error("Error fetching volunteers:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Download volunteers data as Excel
+  const handleDownloadExcel = () => {
+    try {
+      const excelData = allVolunteers.map((volunteer, index) => ({
+        'S.No': index + 1,
+        'Volunteer ID': volunteer.id || '',
+        'Full Name': volunteer.full_name || '',
+        'Email': volunteer.email || '',
+        'Phone': volunteer.phone_number || '',
+        'Assigned Location': volunteer.assigned_location || '',
+        'Total Scans Performed': volunteer.total_scans_performed || 0,
+        'Status': volunteer.is_active ? 'Active' : 'Inactive',
+        'Created At': volunteer.created_at ? new Date(volunteer.created_at).toLocaleString() : '',
+        'Updated At': volunteer.updated_at ? new Date(volunteer.updated_at).toLocaleString() : ''
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(excelData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Volunteers');
+
+      worksheet['!cols'] = [
+        { wch: 6 },  // S.No
+        { wch: 12 }, // Volunteer ID
+        { wch: 25 }, // Full Name
+        { wch: 30 }, // Email
+        { wch: 15 }, // Phone
+        { wch: 20 }, // Assigned Location
+        { wch: 20 }, // Total Scans Performed
+        { wch: 10 }, // Status
+        { wch: 18 }, // Created At
+        { wch: 18 }  // Updated At
+      ];
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const fileName = `SGTU_Volunteers_${timestamp}.xlsx`;
+
+      const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      saveAs(data, fileName);
+
+      alert(`Excel file downloaded successfully! Total volunteers: ${allVolunteers.length}`);
+    } catch (error) {
+      console.error('Excel download error:', error);
+      alert('Failed to download Excel file. Please try again.');
     }
   };
 
@@ -204,14 +253,13 @@ export default function AdminVolunteersPage() {
                 Showing {volunteers.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} - {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} volunteers
               </div>
               <div className="flex gap-2">
-                <button className="flex items-center gap-2 px-4 py-2.5 text-sm border border-light-gray-border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition">
-                  <span className="material-symbols-outlined text-lg">upload_file</span>
-                  <span className="hidden sm:inline">Upload via Excel</span>
-                  <span className="sm:hidden">Upload</span>
-                </button>
-                <button className="px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-dark transition text-sm font-medium flex items-center justify-center gap-2">
-                  <span className="material-symbols-outlined text-lg">add</span>
-                  Add Volunteer
+                <button 
+                  onClick={handleDownloadExcel}
+                  className="flex items-center gap-2 px-4 py-2.5 text-sm border border-light-gray-border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                >
+                  <span className="material-symbols-outlined text-lg">download</span>
+                  <span className="hidden sm:inline">Download Excel</span>
+                  <span className="sm:hidden">Download</span>
                 </button>
               </div>
             </div>

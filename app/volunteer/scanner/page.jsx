@@ -115,18 +115,43 @@ export default function VolunteerScannerPage() {
 
         console.log("📷 Requesting camera permission...");
         
+        // Check if mediaDevices is supported
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          console.error("❌ getUserMedia not supported");
+          setError("Camera not supported on this browser. Please use Chrome, Safari, or Firefox.");
+          setStatus("error");
+          return;
+        }
+        
         // First, request camera permission explicitly
         try {
-          await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: "environment" } 
-          }).then(stream => {
-            // Stop the stream immediately - we just needed permission
-            stream.getTracks().forEach(track => track.stop());
-            console.log("✅ Camera permission granted");
+          const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+              facingMode: { ideal: "environment" }
+            } 
           });
+          
+          // Stop the stream immediately - we just needed permission
+          stream.getTracks().forEach(track => track.stop());
+          console.log("✅ Camera permission granted");
+          
         } catch (permErr) {
-          console.warn("⚠️ Camera permission denied:", permErr.name);
-          setError("Camera permission denied. Please allow camera access and refresh.");
+          console.error("⚠️ Camera permission error:", {
+            name: permErr.name,
+            message: permErr.message
+          });
+          
+          let errorMsg = "Camera permission denied. Please allow camera access.";
+          
+          if (permErr.name === "NotFoundError") {
+            errorMsg = "No camera found on this device.";
+          } else if (permErr.name === "NotAllowedError") {
+            errorMsg = "Camera permission denied. Please allow camera access in browser settings.";
+          } else if (permErr.name === "NotReadableError") {
+            errorMsg = "Camera is being used by another app. Please close other apps and try again.";
+          }
+          
+          setError(errorMsg);
           setStatus("error");
           return;
         }
@@ -173,12 +198,16 @@ export default function VolunteerScannerPage() {
         }
 
       } catch (err) {
-        console.warn("⚠️ Camera initialization issue:", err?.name, err?.message);
+        console.error("⚠️ Camera initialization failed:", {
+          name: err?.name,
+          message: err?.message,
+          stack: err?.stack
+        });
 
         // Navigation errors are common - retry once
         if (!mountedRef.current) return;
 
-        console.log("🔄 Retrying camera initialization in 1.5s...");
+        console.log("🔄 Retrying camera initialization in 2s...");
         setError("Initializing camera...");
         setStatus("initializing");
 
@@ -188,13 +217,22 @@ export default function VolunteerScannerPage() {
           try {
             // Request permission first on retry too
             try {
-              await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "environment" } 
-              }).then(stream => {
-                stream.getTracks().forEach(track => track.stop());
+              const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                  facingMode: { ideal: "environment" }
+                } 
               });
+              stream.getTracks().forEach(track => track.stop());
+              console.log("✅ Camera permission granted on retry");
             } catch (permErr) {
-              setError("Camera permission denied. Please allow camera access and refresh.");
+              console.error("⚠️ Permission denied on retry:", permErr.name);
+              
+              let errorMsg = "Camera access denied.";
+              if (permErr.name === "NotReadableError") {
+                errorMsg = "Camera is busy. Close other apps using camera.";
+              }
+              
+              setError(errorMsg);
               setStatus("error");
               return;
             }
@@ -228,11 +266,25 @@ export default function VolunteerScannerPage() {
               setStatus("error");
             }
           } catch (retryErr) {
-            console.warn("⚠️ Camera retry failed:", retryErr.name);
-            setError("Camera not available. Please refresh the page or check camera permissions.");
+            console.error("⚠️ Camera retry failed:", {
+              name: retryErr?.name,
+              message: retryErr?.message
+            });
+            
+            let errorMsg = "Camera initialization failed.";
+            
+            if (retryErr?.name === "NotFoundError") {
+              errorMsg = "No camera detected. Please check device settings.";
+            } else if (retryErr?.name === "NotReadableError") {
+              errorMsg = "Camera is busy. Close other apps and refresh.";
+            } else if (retryErr?.message?.includes("Library")) {
+              errorMsg = "Scanner library failed to load. Check internet connection.";
+            }
+            
+            setError(errorMsg);
             setStatus("error");
           }
-        }, 1500);
+        }, 2000);
       }
     };
 

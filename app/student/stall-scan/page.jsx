@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useStudentAuth } from "@/hooks/useAuth";
 import api from "@/lib/api";
 
@@ -14,6 +14,17 @@ export default function StallScanPage() {
   const router = useRouter();
   const [theme, setTheme] = useState("light");
   const [error, setError] = useState("");
+  const [status, setStatus] = useState("initializing");
+  const [cameras, setCameras] = useState([]);
+  const [currentCameraId, setCurrentCameraId] = useState(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  
+  const html5QrRef = useRef(null);
+  const mountedRef = useRef(true);
+  const cleanupInProgressRef = useRef(false);
+  const retryCountRef = useRef(0);
+  const MAX_RETRIES = 3;
 
   // ------------------ THEME HANDLING ------------------
   useEffect(() => {
@@ -41,59 +52,464 @@ export default function StallScanPage() {
     }
   };
 
+  /* LOAD HTML5-QRCODE LIBRARY */
+  const loadScript = (src) => {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector(`script[src="${src}"]`)) {
+        resolve();
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = src;
+      script.onload = resolve;
+      script.onerror = reject;
+      document.body.appendChild(script);
+    });
+  };
+
+  /* INITIALIZE CAMERAS */
   useEffect(() => {
-    let scanner;
-    let video;
+    mountedRef.current = true;
+    let initAttempted = false;
 
-    async function loadScanner() {
+    const initCameras = async () => {
+      if (initAttempted) return;
+      initAttempted = true;
+
       try {
-        // Load qr-scanner ONLY in client
-        const QrScanner = (await import("qr-scanner")).default;
+        await new Promise(resolve => setTimeout(resolve, 300));
+        if (!mountedRef.current) return;
 
-        video = document.getElementById("qr-video");
+        console.log("🔧 Loading QR scanner library...");
+        try {
+          await loadScript("https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js");
+        } catch (cdnErr) {
+          console.warn("⚠️ Primary CDN failed, trying alternate...");
+          await loadScript("https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js");
+        }
 
-        scanner = new QrScanner(
-          video,
-          async (result) => {
-            try {
-              const stall_qr_token = result.data;
+        if (!mountedRef.current) return;
+        await new Promise(resolve => setTimeout(resolve, 300));
+        if (!mountedRef.current) return;
 
-              // Call backend to scan stall
-              const res = await api.post("/student/scan-stall", {
-                stall_qr_token: stall_qr_token
-              });
+        console.log("📷 Requesting camera permission...");
+        
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          console.error("❌ getUserMedia not supported");
+          setError("Camera not supported on this browser. Please use Chrome, Safari, or Firefox.");
+          setStatus("error");
+          return;
+        }
+        
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: { ideal: "environment" } } 
+          });
+          stream.getTracks().forEach(track => track.stop());
+          console.log("✅ Camera permission granted");
+        } catch (permErr) {
+          console.error("⚠️ Camera permission error:", {
+            name: permErr.name,
+            message: permErr.message
+          });
+          
+          let errorMsg = "Camera permission denied. Please allow camera access.";
+          if (permErr.name === "NotFoundError") {
+            errorMsg = "No camera found on this device.";
+          } else if (permErr.name === "NotAllowedError") {
+            errorMsg = "Camera permission denied. Please allow camera access in browser settings.";
+          } else if (permErr.name === "NotReadableError") {
+            errorMsg = "Camera is being used by another app. Please close other apps and try again.";
+          }
+          
+          setError(errorMsg);
+          setStatus("error");
+          return;
+        }
+        
+        if (!mountedRef.current) return;
+        
+        console.log("📷 Getting available cameras...");
+        const Html5Qrcode = window.Html5Qrcode;
+        
+        if (!Html5Qrcode) {
+          throw new Error("Html5Qrcode library not loaded");
+        }
+        
+        const availableCameras = await Html5Qrcode.getCameras();
+        if (!mountedRef.current) return;
 
-              if (res.data?.success) {
-                const stallData = res.data.data;
-                scanner.stop();
-                
-                // Navigate to feedback rate page with stall info
-                router.push(`/student/feedback-rate?stallId=${stallData.stall.id}`);
-              }
-            } catch (err) {
-              const errorMsg = err.response?.data?.message || "Invalid QR code or you must be checked in";
-              setError(errorMsg);
-              setTimeout(() => setError(""), 3000);
-            }
-          },
-          { returnDetailedScanResult: true }
+        if (!availableCameras || availableCameras.length === 0) {
+          console.warn("⚠️ No cameras found");
+          setError("No cameras found on this device");
+          setStatus("error");
+          return;
+        }
+
+        console.log("✅ Found", availableCameras.length, "camera(s)");
+        availableCameras.forEach((cam, idx) => {
+          console.log(`📷 Camera ${idx + 1}:`, cam.label, `(ID: ${cam.id})`);
+        });
+        
+        setCameras(availableCameras);
+
+        let selectedCamera = availableCameras.find(cam =>
+          cam.label.toLowerCase().includes("back") ||
+          cam.label.toLowerCase().includes("rear") ||
+          cam.label.toLowerCase().includes("environment")
         );
 
-        scanner.start();
+        if (!selectedCamera) {
+          selectedCamera = availableCameras[availableCameras.length - 1];
+        }
+
+        if (mountedRef.current) {
+          setCurrentCameraId(selectedCamera.id);
+          console.log("✅ Camera selected:", selectedCamera.label);
+          console.log("🎥 Total cameras in state:", availableCameras.length);
+        }
+
       } catch (err) {
-        console.error("Scanner error:", err);
-        setError("Failed to load camera");
+        console.error("⚠️ Camera initialization failed:", {
+          name: err?.name,
+          message: err?.message
+        });
+
+        if (!mountedRef.current) return;
+
+        console.log("🔄 Retrying camera initialization in 2s...");
+        setError("Initializing camera...");
+        setStatus("initializing");
+
+        setTimeout(async () => {
+          if (!mountedRef.current) return;
+
+          try {
+            try {
+              const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: { ideal: "environment" } } 
+              });
+              stream.getTracks().forEach(track => track.stop());
+              console.log("✅ Camera permission granted on retry");
+            } catch (permErr) {
+              console.error("⚠️ Permission denied on retry:", permErr.name);
+              let errorMsg = "Camera access denied.";
+              if (permErr.name === "NotReadableError") {
+                errorMsg = "Camera is busy. Close other apps using camera.";
+              }
+              setError(errorMsg);
+              setStatus("error");
+              return;
+            }
+            
+            const Html5Qrcode = window.Html5Qrcode;
+            if (!Html5Qrcode) {
+              throw new Error("Library not loaded");
+            }
+
+            const availableCameras = await Html5Qrcode.getCameras();
+            if (availableCameras && availableCameras.length > 0) {
+              setCameras(availableCameras);
+
+              let selectedCamera = availableCameras.find(cam =>
+                cam.label.toLowerCase().includes("back") ||
+                cam.label.toLowerCase().includes("rear") ||
+                cam.label.toLowerCase().includes("environment")
+              );
+
+              if (!selectedCamera) {
+                selectedCamera = availableCameras[availableCameras.length - 1];
+              }
+
+              if (mountedRef.current) {
+                setCurrentCameraId(selectedCamera.id);
+                setError(null);
+                console.log("✅ Camera retry successful");
+              }
+            } else {
+              setError("No cameras found on this device");
+              setStatus("error");
+            }
+          } catch (retryErr) {
+            console.error("⚠️ Camera retry failed:", {
+              name: retryErr?.name,
+              message: retryErr?.message
+            });
+            
+            let errorMsg = "Camera initialization failed.";
+            if (retryErr?.name === "NotFoundError") {
+              errorMsg = "No camera detected. Please check device settings.";
+            } else if (retryErr?.name === "NotReadableError") {
+              errorMsg = "Camera is busy. Close other apps and refresh.";
+            } else if (retryErr?.message?.includes("Library")) {
+              errorMsg = "Scanner library failed to load. Check internet connection.";
+            }
+            
+            setError(errorMsg);
+            setStatus("error");
+          }
+        }, 2000);
       }
-    }
+    };
 
     if (isAuthenticated && !isChecking) {
-      loadScanner();
+      initCameras();
     }
 
     return () => {
-      if (scanner) scanner.stop();
+      console.log("🧹 Component unmounting");
+      mountedRef.current = false;
+
+      if (html5QrRef.current) {
+        try {
+          html5QrRef.current.stop().catch(() => {});
+          html5QrRef.current.clear().catch(() => {});
+        } catch (e) {}
+        html5QrRef.current = null;
+      }
+
+      const videoElement = document.querySelector("#stall-qr-reader video");
+      if (videoElement && videoElement.srcObject) {
+        const tracks = videoElement.srcObject.getTracks();
+        tracks.forEach(track => {
+          try {
+            track.stop();
+          } catch (e) {}
+        });
+      }
     };
-  }, [isAuthenticated, isChecking, router]);
+  }, [isAuthenticated, isChecking]);
+
+  /* CLEANUP SCANNER */
+  const cleanupScanner = async () => {
+    if (cleanupInProgressRef.current) {
+      console.log("⏳ Cleanup already in progress");
+      return;
+    }
+
+    cleanupInProgressRef.current = true;
+
+    try {
+      if (html5QrRef.current && isScanning) {
+        console.log("🧹 Cleaning up scanner...");
+        
+        try {
+          await html5QrRef.current.stop();
+          console.log("✅ Scanner stopped");
+        } catch (stopErr) {
+          console.log("ℹ️ Stop error:", stopErr?.message || "Unknown");
+        }
+        
+        try {
+          await html5QrRef.current.clear();
+        } catch (clearErr) {
+          console.log("ℹ️ Clear error:", clearErr?.message || "Unknown");
+        }
+        
+        html5QrRef.current = null;
+      }
+      
+      try {
+        const videoElement = document.querySelector("#stall-qr-reader video");
+        if (videoElement) {
+          videoElement.pause();
+          
+          if (videoElement.srcObject) {
+            const tracks = videoElement.srcObject.getTracks();
+            tracks.forEach(track => {
+              track.stop();
+              console.log("🛑 Stopped track:", track.kind);
+            });
+            videoElement.srcObject = null;
+          }
+          
+          videoElement.removeAttribute("src");
+          videoElement.load();
+        }
+      } catch (mediaErr) {
+        console.log("ℹ️ Media cleanup:", mediaErr?.message || "Unknown");
+      }
+      
+      setIsScanning(false);
+    } catch (err) {
+      console.log("ℹ️ Cleanup handled:", err?.name);
+      html5QrRef.current = null;
+      setIsScanning(false);
+    } finally {
+      cleanupInProgressRef.current = false;
+    }
+  };
+
+  /* START SCANNER */
+  useEffect(() => {
+    if (!currentCameraId || !mountedRef.current) return;
+
+    const startScanner = async () => {
+      try {
+        setStatus("starting");
+        setError(null);
+
+        await cleanupScanner();
+        await new Promise(resolve => setTimeout(resolve, 400));
+
+        if (!mountedRef.current) return;
+
+        const Html5Qrcode = window.Html5Qrcode;
+        const scanner = new Html5Qrcode("stall-qr-reader");
+        html5QrRef.current = scanner;
+
+        const config = {
+          fps: 10,
+          qrbox: { width: 250, height: 250 },
+          aspectRatio: 1.0,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
+          }
+        };
+
+        console.log("📷 Starting scanner with camera:", currentCameraId);
+
+        await scanner.start(
+          currentCameraId,
+          config,
+          onScanSuccess,
+          () => {} // Silent failure handler
+        );
+
+        setIsScanning(true);
+        setStatus("scanning");
+        retryCountRef.current = 0;
+        console.log("✅ Scanner started successfully");
+
+      } catch (err) {
+        console.warn("⚠️ Scanner start issue:", err?.name || "Unknown");
+        
+        const errorMsg = err?.message || "";
+        if (err?.name === "NotReadableError" || errorMsg.includes("Could not start video source")) {
+          retryCountRef.current += 1;
+          
+          if (retryCountRef.current > MAX_RETRIES) {
+            console.warn("⚠️ Max camera retries reached");
+            setError("Camera unavailable. Close apps using camera, then refresh.");
+            setStatus("error");
+            return;
+          }
+          
+          console.log(`🔄 Camera retry ${retryCountRef.current}/${MAX_RETRIES}...`);
+          setError(`Camera busy. Auto-retry ${retryCountRef.current}/${MAX_RETRIES}...`);
+          setStatus("error");
+          
+          setTimeout(async () => {
+            if (mountedRef.current) {
+              console.log("🔄 Attempting camera recovery...");
+              html5QrRef.current = null;
+              setIsScanning(false);
+              setError(null);
+              setStatus("initializing");
+              
+              const retryCamera = currentCameraId;
+              setCurrentCameraId(null);
+              
+              setTimeout(() => {
+                if (mountedRef.current) {
+                  console.log("🔄 Retrying with camera:", retryCamera);
+                  setCurrentCameraId(retryCamera);
+                }
+              }, 1000);
+            }
+          }, 2000);
+        } else {
+          setError(err?.message || "Failed to start scanner");
+          setStatus("error");
+        }
+      }
+    };
+
+    startScanner();
+
+    return () => {
+      cleanupScanner();
+    };
+  }, [currentCameraId]);
+
+  /* HANDLE SCAN SUCCESS */
+  const onScanSuccess = async (decodedText) => {
+    if (isProcessing) {
+      return;
+    }
+
+    setIsProcessing(true);
+    console.log("🎯 Stall QR Scanned:", decodedText.substring(0, 50) + "...");
+
+    await cleanupScanner();
+
+    try {
+      setStatus("processing");
+      
+      console.log("📤 Sending stall scan request...");
+      const res = await api.post("/student/scan-stall", {
+        stall_qr_token: decodedText
+      });
+
+      console.log("📥 Response received:", res.data);
+
+      if (res.data?.success) {
+        const stallData = res.data.data;
+        console.log("✅ Stall scan successful:", stallData.stall.stall_name);
+        
+        // Navigate to feedback rate page
+        router.push(`/student/feedback-rate?stallId=${stallData.stall.id}`);
+      }
+    } catch (err) {
+      console.warn("⚠️ Stall scan failed:", err.response?.status || err.name);
+      
+      const errorMsg = err.response?.data?.message || 
+                       err.response?.data?.error || 
+                       err?.message ||
+                       "Failed to scan stall QR code";
+      
+      setError(errorMsg);
+      setStatus("error");
+      
+      // Restart scanner after error
+      setTimeout(() => {
+        setError(null);
+        setIsProcessing(false);
+        
+        if (mountedRef.current) {
+          console.log("▶️ Restarting scanner after error...");
+          setStatus("initializing");
+          const cameraId = currentCameraId;
+          setCurrentCameraId(null);
+          setTimeout(() => setCurrentCameraId(cameraId), 400);
+        }
+      }, 2000);
+    }
+  };
+
+  /* SWITCH CAMERA */
+  const switchCamera = async () => {
+    if (cameras.length < 2) return;
+
+    try {
+      setStatus("switching");
+      
+      await cleanupScanner();
+      await new Promise(resolve => setTimeout(resolve, 400));
+
+      const currentIndex = cameras.findIndex(cam => cam.id === currentCameraId);
+      const nextIndex = (currentIndex + 1) % cameras.length;
+      const nextCamera = cameras[nextIndex];
+
+      console.log("🔄 Switching to camera:", nextCamera.label);
+      setCurrentCameraId(nextCamera.id);
+      
+    } catch (err) {
+      console.error("⚠️ Camera switch error:", err);
+      setError("Failed to switch camera");
+      setTimeout(() => setError(null), 2000);
+    }
+  };
 
   // Show loading while checking authentication
   if (isChecking) {
@@ -129,32 +545,147 @@ export default function StallScanPage() {
 
         {/* BODY CONTENT */}
         <main className="flex-1 overflow-y-auto p-4 pb-32 sm:p-6 lg:p-8 lg:pb-10">
-          <div className="max-w-2xl mx-auto space-y-6">
+          <div className="max-w-3xl mx-auto">
             
-            <div className="bg-card-background border border-light-gray-border rounded-2xl p-8 shadow-soft">
-              <div className="flex flex-col items-center gap-6">
-                <h2 className="text-2xl font-bold text-dark-text">Scan Stall QR Code</h2>
-                
-                <div className="w-full max-w-md bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-md border border-light-gray-border">
-                  <video id="qr-video" className="w-full rounded-xl" />
+            {/* Scanner Card */}
+            <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl overflow-hidden border border-gray-200 dark:border-gray-700">
+              
+              {/* Header */}
+              <div className="bg-gradient-to-r from-primary to-primary/80 p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h1 className="text-2xl font-bold">Scan Stall QR</h1>
+                    <p className="text-sm opacity-90 mt-1">Point camera at stall QR code</p>
+                  </div>
+                  
+                  {/* Camera Switch Button */}
+                  {cameras.length > 1 && (
+                    <button
+                      onClick={switchCamera}
+                      disabled={status === "switching" || status === "processing"}
+                      className="p-3 bg-white/20 hover:bg-white/30 rounded-xl backdrop-blur-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Switch Camera"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
+              </div>
 
-                {error && (
-                  <div className="w-full max-w-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
-                    <p className="text-red-600 dark:text-red-400 text-center">{error}</p>
+              {/* Scanner Area */}
+              <div className="p-6">
+                <div className="relative bg-gray-900 rounded-2xl overflow-hidden" style={{ aspectRatio: "1" }}>
+                  {/* Scanner div */}
+                  <div id="stall-qr-reader" className="w-full h-full"></div>
+                  
+                  {/* Status Overlays */}
+                  {status === "initializing" && (
+                    <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center">
+                      <div className="text-center text-white p-6">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+                        <p className="text-lg font-semibold">Initializing Camera...</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {status === "starting" && (
+                    <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center">
+                      <div className="text-center text-white p-6">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+                        <p className="text-lg font-semibold">Starting Scanner...</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {status === "switching" && (
+                    <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center">
+                      <div className="text-center text-white p-6">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+                        <p className="text-lg font-semibold">Switching Camera...</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {status === "processing" && (
+                    <div className="absolute inset-0 bg-green-600/90 backdrop-blur-sm flex items-center justify-center animate-fadeIn">
+                      <div className="text-center text-white p-6">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+                        <p className="text-lg font-semibold">Processing Scan...</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {status === "error" && (
+                    <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center">
+                      <div className="text-center text-white p-6">
+                        <svg className="w-16 h-16 text-red-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <p className="text-lg font-semibold mb-2">Camera Error</p>
+                        <p className="text-sm opacity-80">{error || "Please check permissions"}</p>
+                        <button
+                          onClick={() => window.location.reload()}
+                          className="mt-4 px-6 py-2 bg-white text-gray-900 rounded-xl font-semibold hover:bg-gray-100 transition"
+                        >
+                          Refresh Page
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {status === "scanning" && (
+                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
+                      <div className="bg-green-500 text-white px-4 py-2 rounded-full text-sm font-semibold flex items-center gap-2 shadow-lg">
+                        <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                        Scanning...
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Info */}
+                <div className="mt-6 text-center">
+                  <p className="text-gray-600 dark:text-gray-300 text-sm">
+                    📱 Position the stall QR code within the frame
+                  </p>
+                  <p className="text-gray-500 dark:text-gray-400 text-xs mt-2">
+                    Make sure you are checked in at the event
+                  </p>
+                </div>
+                
+                {/* Error Alert */}
+                {error && status !== "error" && (
+                  <div className="mt-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                    <p className="text-red-600 dark:text-red-400 text-center text-sm">{error}</p>
                   </div>
                 )}
-
-                <p className="text-gray-600 dark:text-gray-300 text-sm text-center">
-                  Hold your camera over the stall QR code
-                </p>
-
-                <button
-                  onClick={() => router.push("/student/feedback")}
-                  className="px-6 py-3 bg-gray-500 text-white font-semibold rounded-xl hover:bg-gray-600 transition"
-                >
-                  Go to Feedback Page
-                </button>
+                
+                {/* Action Buttons */}
+                <div className="mt-6 space-y-3">
+                  {/* Camera Switch Button - Always show if cameras exist */}
+                  {cameras.length > 0 && (
+                    <button
+                      onClick={switchCamera}
+                      disabled={cameras.length < 2 || status === "switching" || status === "processing" || status === "error"}
+                      className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      title={cameras.length < 2 ? "Only one camera available" : "Switch between front and back camera"}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      {cameras.length > 1 ? `Switch Camera (${cameras.length} available)` : `Camera (${cameras.length} found)`}
+                    </button>
+                  )}
+                  
+                  <button
+                    onClick={() => router.push("/student/feedback")}
+                    className="w-full px-6 py-3 bg-gray-500 hover:bg-gray-600 text-white font-semibold rounded-xl transition shadow-lg"
+                  >
+                    View My Feedback
+                  </button>
+                </div>
               </div>
             </div>
 

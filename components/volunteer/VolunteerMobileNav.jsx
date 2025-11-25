@@ -9,11 +9,11 @@ export default function VolunteerMobileNav() {
   const NavBtn = ({ label, icon, href }) => (
     <button
       onClick={() => router.push(href)}
-      className={`flex flex-col items-center py-2 rounded-xl 
+      className={`flex flex-col items-center py-2 rounded-xl
         ${
           pathname === href
             ? "text-primary font-semibold"
-            : "text-gray-600 dark:text-gray-600"
+            : "text-gray-600 dark:text-gray-400"
         }`}
     >
       <span className="material-symbols-outlined">{icon}</span>

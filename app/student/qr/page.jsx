@@ -20,6 +20,7 @@ export default function StudentQRPage() {
   const [theme, setTheme] = useState("light");
   const [timeLeft, setTimeLeft] = useState(null);
   const [rotationInfo, setRotationInfo] = useState(null);
+  const [errorMessage, setErrorMessage] = useState(null);
   const retryTimeoutRef = useRef(null);
 
   // ------------------ FETCH QR ------------------
@@ -37,10 +38,26 @@ export default function StudentQRPage() {
     try {
       setLoading(true);
 
+      // Debug: Check if token exists
+      const token = localStorage.getItem("token");
+      const role = localStorage.getItem("role");
+      
+      console.log("📊 Fetching QR Code...");
+      console.log("🔑 Token exists:", !!token);
+      console.log("👤 Role:", role);
+      
+      if (!token) {
+        console.error("❌ No token found in localStorage");
+        throw new Error("Authentication token missing. Please login again.");
+      }
+
       const res = await api.get("/student/qr-code");
+      
+      console.log("✅ QR Code API Response:", res.data);
+      
       const qr = res.data?.data;
       if (!qr?.qr_code) {
-        throw new Error("Invalid QR response");
+        throw new Error("Invalid QR response - no QR code data");
       }
 
       setQrData({
@@ -56,8 +73,36 @@ export default function StudentQRPage() {
         clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = null;
       }
+      
+      setErrorMessage(null); // Clear any previous errors
     } catch (err) {
-      console.error(err);
+      console.error("❌ QR Fetch Error:", err);
+      console.error("Error details:", {
+        message: err.message,
+        status: err.response?.status,
+        data: err.response?.data,
+      });
+      
+      // Don't retry if it's an authentication error
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        console.error("❌ Authentication failed - redirecting to login");
+        const errorMsg = err.response?.data?.message || "Session expired. Please login again.";
+        setErrorMessage(errorMsg);
+        
+        // Redirect after 2 seconds
+        setTimeout(() => {
+          localStorage.removeItem("token");
+          localStorage.removeItem("role");
+          window.location.href = "/";
+        }, 2000);
+        return;
+      }
+      
+      // Set error message for other errors
+      const errorMsg = err.response?.data?.message || err.message || "Failed to load QR code";
+      setErrorMessage(errorMsg);
+      
+      // Retry for other errors
       retryTimeoutRef.current = setTimeout(fetchQR, 5000);
     } finally {
       setLoading(false);
@@ -168,9 +213,21 @@ export default function StudentQRPage() {
                   <p className="mt-4 text-gray-600 dark:text-gray-300">Loading QR...</p>
                 </div>
               ) : !qrData ? (
-                <div className="py-20 flex flex-col items-center text-center text-gray-600 dark:text-gray-300">
+                <div className="py-20 flex flex-col items-center text-center">
                   <span className="material-symbols-outlined text-5xl text-red-400 mb-4">error</span>
-                  <p>Unable to load your QR right now. Please wait a moment while we retry automatically.</p>
+                  <p className="text-gray-800 dark:text-gray-200 font-semibold mb-2">
+                    Unable to load your QR code
+                  </p>
+                  {errorMessage && (
+                    <p className="text-red-600 dark:text-red-400 text-sm mb-4">
+                      {errorMessage}
+                    </p>
+                  )}
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">
+                    {errorMessage?.includes("login") || errorMessage?.includes("Session") 
+                      ? "Redirecting to login..." 
+                      : "Retrying automatically in 5 seconds..."}
+                  </p>
                 </div>
               ) : (
                 <>

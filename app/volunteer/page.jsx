@@ -38,8 +38,15 @@ export default function VolunteerDashboard() {
 
       if (data) {
         setVolunteerName(data.volunteer_name);
-        setTotalScans(data.total_scans);
+        // Backend returns total_scans which is the count of history records
+        setTotalScans(data.total_scans || 0);
         setHistory(data.history || []);
+        
+        console.log("📊 Volunteer Stats:", {
+          name: data.volunteer_name,
+          totalScans: data.total_scans,
+          historyCount: data.history?.length || 0
+        });
       }
     } catch (err) {
       console.error("History error → ", err);
@@ -53,6 +60,19 @@ export default function VolunteerDashboard() {
       loadHistory();
     }
   }, [isChecking, isAuthenticated]);
+
+  // Refresh data when returning from scanner
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && isAuthenticated) {
+        console.log("🔄 Page became visible, refreshing data...");
+        loadHistory();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [isAuthenticated]);
 
   // ------------------ LOAD THEME ------------------
   useEffect(() => {

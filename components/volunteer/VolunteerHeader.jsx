@@ -4,8 +4,8 @@ import Image from "next/image";
 
 export default function VolunteerHeader({ theme, toggleTheme, volunteerName }) {
   return (
-    <header className="sticky top-0 z-10 bg-light-background/80 dark:bg-dark-background/80 
-    backdrop-blur-lg border-b border-gray-200 dark:border-gray-800 flex items-center 
+    <header className="sticky top-0 z-10 bg-soft-background/80 dark:bg-[#0d1220]/80
+    backdrop-blur-lg border-b border-gray-200 dark:border-gray-800 flex items-center
     justify-between h-20 px-6 lg:px-10">
 
       <div className="flex items-center gap-4">

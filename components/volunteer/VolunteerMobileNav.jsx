@@ -13,7 +13,7 @@ export default function VolunteerMobileNav() {
         ${
           pathname === href
             ? "text-primary font-semibold"
-            : "text-gray-600 dark:text-gray-300"
+            : "text-gray-600 dark:text-gray-600"
         }`}
     >
       <span className="material-symbols-outlined">{icon}</span>
@@ -23,8 +23,8 @@ export default function VolunteerMobileNav() {
 
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 
-    bg-soft-background/95 dark:bg-[#0d1220]/90 
-    border-t border-light-gray-border backdrop-blur-md">
+    bg-soft-background dark:bg-[#0d1220] 
+    border-t border-light-gray-border shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
 
       <div className="grid grid-cols-3 gap-1 p-2 max-w-md mx-auto">
         <NavBtn label="Home" icon="home" href="/volunteer" />

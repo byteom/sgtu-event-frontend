@@ -14,25 +14,29 @@ export default function StudentMobileNav() {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-soft-background/95 border-t border-light-gray-border backdrop-blur-sm">
-      <div className="grid grid-cols-4 gap-1 p-2 max-w-3xl mx-auto">
-        {items.map((item, i) => (
-          <button
-            key={i}
-            onClick={() => router.push(item.path)}
-            className={`flex flex-col items-center justify-center py-2 rounded-xl 
-              ${
-                pathname === item.path
-                  ? "text-primary font-semibold"
-                  : "text-gray-600"
-              }
-            `}
-          >
-            <span className="material-symbols-outlined">{item.icon}</span>
-            <span className="text-xs">{item.label}</span>
-          </button>
-        ))}
-      </div>
-    </nav>
+    <>
+      <nav className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-soft-background border-t border-light-gray-border shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
+        <div className="grid grid-cols-4 gap-1 p-2 max-w-3xl mx-auto">
+          {items.map((item, i) => (
+            <button
+              key={i}
+              onClick={() => router.push(item.path)}
+              className={`flex flex-col items-center justify-center py-2 rounded-xl 
+                ${
+                  pathname === item.path
+                    ? "text-primary font-semibold"
+                    : "text-gray-600"
+                }
+              `}
+            >
+              <span className="material-symbols-outlined">{item.icon}</span>
+              <span className="text-xs">{item.label}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
+      {/* Spacer ensures page content clears the fixed mobile nav */}
+      <div className="h-24 lg:hidden pointer-events-none" aria-hidden="true" />
+    </>
   );
 }

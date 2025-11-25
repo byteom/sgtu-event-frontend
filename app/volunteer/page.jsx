@@ -127,24 +127,12 @@ const handleLogout = () => {
             {loading ? (
               <div className="text-gray-500 dark:text-gray-400">Loading stats...</div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              <div className="max-w-sm mx-auto">
                 <StatCard
                   title="Total Scans"
                   value={totalScans}
                   icon="qr_code_scanner"
                   color="blue"
-                />
-                <StatCard
-                  title="Check-ins"
-                  value={history.filter(h => h.scan_type === "CHECKIN").length}
-                  icon="login"
-                  color="green"
-                />
-                <StatCard
-                  title="Check-outs"
-                  value={history.filter(h => h.scan_type === "CHECKOUT").length}
-                  icon="logout"
-                  color="yellow"
                 />
               </div>
             )}

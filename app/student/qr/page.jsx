@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import api from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { useStudentAuth } from "@/hooks/useAuth";
@@ -10,58 +10,89 @@ import StudentSidebar from "@/components/student/StudentSidebar";
 import StudentHeader from "@/components/student/StudentHeader";
 import StudentMobileNav from "@/components/student/StudentMobileNav";
 
+const DEFAULT_ROTATION_SECONDS = 30;
+
 export default function StudentQRPage() {
   const { isAuthenticated, isChecking } = useStudentAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [qrData, setQrData] = useState(null);
   const [theme, setTheme] = useState("light");
-  const [timeLeft, setTimeLeft] = useState(30);
+  const [timeLeft, setTimeLeft] = useState(null);
+  const [rotationInfo, setRotationInfo] = useState(null);
+  const retryTimeoutRef = useRef(null);
 
   // ------------------ FETCH QR ------------------
-  async function fetchQR() {
+  const deriveCountdown = useCallback((info) => {
+    if (typeof info?.expires_in_seconds === "number") {
+      return info.expires_in_seconds;
+    }
+    if (typeof info?.rotation_interval === "number") {
+      return info.rotation_interval;
+    }
+    return DEFAULT_ROTATION_SECONDS;
+  }, []);
+
+  const fetchQR = useCallback(async () => {
     try {
       setLoading(true);
 
       const res = await api.get("/student/qr-code");
       const qr = res.data?.data;
-      if (!qr) throw new Error("Invalid QR response");
+      if (!qr?.qr_code) {
+        throw new Error("Invalid QR response");
+      }
 
       setQrData({
-        full_name: "Student",
+        full_name: qr.full_name || qr.student_name || "Student",
         registration_no: qr.registration_no,
         qr_code: qr.qr_code,
       });
 
-      setTimeLeft(30); // ⭐ Reset the countdown
+      setRotationInfo(qr.rotation_info || null);
+      setTimeLeft(deriveCountdown(qr.rotation_info));
 
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
     } catch (err) {
       console.error(err);
-      alert("Failed to load QR Code");
+      retryTimeoutRef.current = setTimeout(fetchQR, 5000);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
-  }
+  }, [deriveCountdown]);
 
   // Load first time
   useEffect(() => {
     fetchQR();
-  }, []);
+    return () => {
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+      }
+    };
+  }, [fetchQR]);
 
-  // Auto refresh every 30 sec
-  useEffect(() => {
-    const interval = setInterval(fetchQR, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  const hasTimer = timeLeft !== null;
 
-  // ------------------ COUNTDOWN TIMER ------------------
+  // ------------------ COUNTDOWN TIMER (SYNCED WITH BACKEND) ------------------
   useEffect(() => {
+    if (!hasTimer) return;
+
     const timer = setInterval(() => {
-      setTimeLeft((t) => (t <= 1 ? 30 : t - 1));
+      setTimeLeft((prev) => {
+        if (prev === null) return prev;
+        if (prev <= 1) {
+          fetchQR();
+          return null;
+        }
+        return prev - 1;
+      });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [hasTimer, fetchQR]);
 
   // ------------------ THEME ------------------
   useEffect(() => {
@@ -136,6 +167,11 @@ export default function StudentQRPage() {
                   <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent" />
                   <p className="mt-4 text-gray-600 dark:text-gray-300">Loading QR...</p>
                 </div>
+              ) : !qrData ? (
+                <div className="py-20 flex flex-col items-center text-center text-gray-600 dark:text-gray-300">
+                  <span className="material-symbols-outlined text-5xl text-red-400 mb-4">error</span>
+                  <p>Unable to load your QR right now. Please wait a moment while we retry automatically.</p>
+                </div>
               ) : (
                 <>
                   <div className="flex flex-col items-center">
@@ -155,22 +191,14 @@ export default function StudentQRPage() {
                     <div className="inline-block px-4 py-2 rounded-full 
                         bg-gradient-to-r from-[#2B6CB0] to-[#1E3A8A] 
                         text-white font-semibold shadow-md text-sm tracking-wide">
-                      Refreshing in {timeLeft}s
+                      {timeLeft !== null
+                        ? `Refreshing in ${timeLeft}s`
+                        : rotationInfo?.rotation_interval
+                        ? `Syncing new QR...`
+                        : "Syncing..."}
                     </div>
                   </div>
 
-                  {/* REFRESH BUTTON */}
-                  <div className="mt-8 flex justify-center">
-                    <button
-                      onClick={fetchQR}
-                      className="px-6 py-3 rounded-xl font-semibold text-white transition-all shadow-md"
-                      style={{ backgroundColor: "#2B6CB0" }}
-                      onMouseEnter={(e) => (e.target.style.backgroundColor = "#1E3A8A")}
-                      onMouseLeave={(e) => (e.target.style.backgroundColor = "#2B6CB0")}
-                    >
-                      Refresh QR
-                    </button>
-                  </div>
                 </>
               )}
 
